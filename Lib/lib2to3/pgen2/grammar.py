@@ -198,6 +198,8 @@ opmap_raw = """
 // DOUBLESLASH
 //= DOUBLESLASHEQUAL
 -> RARROW
+++ INCREMENT
+-- DECREMENT
 """
 
 opmap = {}

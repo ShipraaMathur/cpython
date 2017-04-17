@@ -39,13 +39,15 @@ simple_stmt: small_stmt (';' small_stmt)* [';'] NEWLINE
 small_stmt: (expr_stmt | del_stmt | pass_stmt | flow_stmt |
              import_stmt | global_stmt | nonlocal_stmt | assert_stmt)
 expr_stmt: testlist_star_expr (annassign | augassign (yield_expr|testlist) |
-                     ('=' (yield_expr|testlist_star_expr))*)
+                     ('=' (yield_expr|testlist_star_expr))* | incr_stmt | decr_stmt)
 annassign: ':' test ['=' test]
 testlist_star_expr: (test|star_expr) (',' (test|star_expr))* [',']
 augassign: ('+=' | '-=' | '*=' | '@=' | '/=' | '%=' | '&=' | '|=' | '^=' |
             '<<=' | '>>=' | '**=' | '//=')
 # For normal and annotated assignments, additional restrictions enforced by the interpreter
 del_stmt: 'del' exprlist
+incr_stmt: '++'
+decr_stmt: '--'
 pass_stmt: 'pass'
 flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt | yield_stmt
 break_stmt: 'break'
@@ -147,3 +149,4 @@ encoding_decl: NAME
 
 yield_expr: 'yield' [yield_arg]
 yield_arg: 'from' test | testlist
+

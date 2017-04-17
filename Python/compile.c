@@ -2800,6 +2800,9 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
         return compiler_augassign(c, s);
     case AnnAssign_kind:
         return compiler_annassign(c, s);
+    case Increment_kind:
+    case Decrement_kind:
+        break;
     case For_kind:
         return compiler_for(c, s);
     case While_kind:

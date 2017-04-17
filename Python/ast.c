@@ -3018,7 +3018,47 @@ ast_for_expr_stmt(struct compiling *c, const node *n)
                              LINENO(n), n->n_col_offset, c->c_arena);
         }
     }
-    else {
+    else if ((TYPE(CHILD(n, 1)) == incr_stmt) || (TYPE(CHILD(n, 1)) == decr_stmt)) {
+        expr_ty expr1, expr2;
+        node *ch = CHILD(n, 0);
+        operator_ty operator;
+        
+        switch (TYPE(CHILD(n, 1))){
+            case incr_stmt:
+                operator = Add; 
+                break;
+            case decr_stmt:
+                operator = Sub; 
+                break;
+        }
+
+        expr1 = ast_for_testlist(c, ch);
+        if (!expr1) {
+            return NULL;
+        }
+        switch (expr1->kind) {
+            case Name_kind:
+                if (forbidden_name(c, expr1->v.Name.id, n, 0)) {
+                    return NULL;
+                }
+                expr1->v.Name.ctx = Store;
+                break;
+            default:
+                ast_error(c, ch,
+                          "illegal target for increment/decrement");
+                return NULL;
+        }
+        // Create a PyObject for the number 1
+        PyObject *pynum = parsenumber(c, "1");
+
+        if (PyArena_AddPyObject(c->c_arena, pynum) < 0) {
+            Py_DECREF(pynum);
+            return NULL;
+        }
+        // Create that as an expression on the same line and offset as the ++/--
+        expr2 = Num(pynum, LINENO(n), n->n_col_offset, c->c_arena);
+        return AugAssign(expr1, operator, expr2, LINENO(n), n->n_col_offset, c->c_arena);
+    } else {
         int i;
         asdl_seq *targets;
         node *value;

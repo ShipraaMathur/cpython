@@ -69,6 +69,9 @@ extern "C" {
 #define ERRORTOKEN	56
 #define N_TOKENS	57
 
+#define INCREMENT   58
+#define DECREMENT   59
+
 /* Special definitions for cooperation with parser */
 
 #define NT_OFFSET		256

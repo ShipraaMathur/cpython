@@ -1266,6 +1266,12 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
         if (s->v.Assert.msg)
             VISIT(st, expr, s->v.Assert.msg);
         break;
+    case Increment_kind:
+        VISIT(st, expr, s->v.Increment.target);
+        break;
+    case Decrement_kind:
+        VISIT(st, expr, s->v.Decrement.target);
+        break;
     case Import_kind:
         VISIT_SEQ(st, alias, s->v.Import.names);
         break;

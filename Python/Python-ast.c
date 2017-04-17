@@ -91,6 +91,14 @@ static char *AugAssign_fields[]={
     "op",
     "value",
 };
+static PyTypeObject *Increment_type;
+static char *Increment_fields[]={
+    "target",
+};
+static PyTypeObject *Decrement_type;
+static char *Decrement_fields[]={
+    "target",
+};
 static PyTypeObject *AnnAssign_type;
 _Py_IDENTIFIER(annotation);
 _Py_IDENTIFIER(simple);
@@ -892,6 +900,10 @@ static int init_types(void)
     if (!Assign_type) return 0;
     AugAssign_type = make_type("AugAssign", stmt_type, AugAssign_fields, 3);
     if (!AugAssign_type) return 0;
+    Increment_type = make_type("Increment", stmt_type, Increment_fields, 1);
+    if (!Increment_type) return 0;
+    Decrement_type = make_type("Decrement", stmt_type, Decrement_fields, 1);
+    if (!Decrement_type) return 0;
     AnnAssign_type = make_type("AnnAssign", stmt_type, AnnAssign_fields, 4);
     if (!AnnAssign_type) return 0;
     For_type = make_type("For", stmt_type, For_fields, 4);
@@ -1426,6 +1438,44 @@ AugAssign(expr_ty target, operator_ty op, expr_ty value, int lineno, int
     p->v.AugAssign.target = target;
     p->v.AugAssign.op = op;
     p->v.AugAssign.value = value;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    return p;
+}
+
+stmt_ty
+Increment(expr_ty target, int lineno, int col_offset, PyArena *arena)
+{
+    stmt_ty p;
+    if (!target) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field target is required for Increment");
+        return NULL;
+    }
+    p = (stmt_ty)PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = Increment_kind;
+    p->v.Increment.target = target;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    return p;
+}
+
+stmt_ty
+Decrement(expr_ty target, int lineno, int col_offset, PyArena *arena)
+{
+    stmt_ty p;
+    if (!target) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field target is required for Decrement");
+        return NULL;
+    }
+    p = (stmt_ty)PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = Decrement_kind;
+    p->v.Decrement.target = target;
     p->lineno = lineno;
     p->col_offset = col_offset;
     return p;
@@ -2810,6 +2860,24 @@ ast2obj_stmt(void* _o)
         value = ast2obj_expr(o->v.AugAssign.value);
         if (!value) goto failed;
         if (_PyObject_SetAttrId(result, &PyId_value, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case Increment_kind:
+        result = PyType_GenericNew(Increment_type, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_expr(o->v.Increment.target);
+        if (!value) goto failed;
+        if (_PyObject_SetAttrId(result, &PyId_target, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case Decrement_kind:
+        result = PyType_GenericNew(Decrement_type, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_expr(o->v.Decrement.target);
+        if (!value) goto failed;
+        if (_PyObject_SetAttrId(result, &PyId_target, value) == -1)
             goto failed;
         Py_DECREF(value);
         break;
@@ -4721,6 +4789,50 @@ obj2ast_stmt(PyObject* obj, stmt_ty* out, PyArena* arena)
             return 1;
         }
         *out = AugAssign(target, op, value, lineno, col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
+    isinstance = PyObject_IsInstance(obj, (PyObject*)Increment_type);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        expr_ty target;
+
+        if (_PyObject_HasAttrId(obj, &PyId_target)) {
+            int res;
+            tmp = _PyObject_GetAttrId(obj, &PyId_target);
+            if (tmp == NULL) goto failed;
+            res = obj2ast_expr(tmp, &target, arena);
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        } else {
+            PyErr_SetString(PyExc_TypeError, "required field \"target\" missing from Increment");
+            return 1;
+        }
+        *out = Increment(target, lineno, col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
+    isinstance = PyObject_IsInstance(obj, (PyObject*)Decrement_type);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        expr_ty target;
+
+        if (_PyObject_HasAttrId(obj, &PyId_target)) {
+            int res;
+            tmp = _PyObject_GetAttrId(obj, &PyId_target);
+            if (tmp == NULL) goto failed;
+            res = obj2ast_expr(tmp, &target, arena);
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        } else {
+            PyErr_SetString(PyExc_TypeError, "required field \"target\" missing from Decrement");
+            return 1;
+        }
+        *out = Decrement(target, lineno, col_offset, arena);
         if (*out == NULL) goto failed;
         return 0;
     }
@@ -7943,6 +8055,10 @@ PyInit__ast(void)
     if (PyDict_SetItemString(d, "Assign", (PyObject*)Assign_type) < 0) return
         NULL;
     if (PyDict_SetItemString(d, "AugAssign", (PyObject*)AugAssign_type) < 0)
+        return NULL;
+    if (PyDict_SetItemString(d, "Increment", (PyObject*)Increment_type) < 0)
+        return NULL;
+    if (PyDict_SetItemString(d, "Decrement", (PyObject*)Decrement_type) < 0)
         return NULL;
     if (PyDict_SetItemString(d, "AnnAssign", (PyObject*)AnnAssign_type) < 0)
         return NULL;
