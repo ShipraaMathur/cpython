@@ -71,6 +71,10 @@ extern "C" {
 #define NL              57
 #define ENCODING                58
 #define N_TOKENS        59
+#define MAYBEDOT        60
+#define MAYBELSQB       61
+#define MAYBEMAYBE      62
+#define MAYBEMAYBEEQUAL 63
 
 /* Special definitions for cooperation with parser */
 

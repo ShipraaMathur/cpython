@@ -10,10 +10,8 @@ static PyTypeObject *mod_type;
 static PyObject* ast2obj_mod(void*);
 static PyTypeObject *Module_type;
 _Py_IDENTIFIER(body);
-_Py_IDENTIFIER(docstring);
 static char *Module_fields[]={
     "body",
-    "docstring",
 };
 static PyTypeObject *Interactive_type;
 static char *Interactive_fields[]={
@@ -46,7 +44,6 @@ static char *FunctionDef_fields[]={
     "body",
     "decorator_list",
     "returns",
-    "docstring",
 };
 static PyTypeObject *AsyncFunctionDef_type;
 static char *AsyncFunctionDef_fields[]={
@@ -55,7 +52,6 @@ static char *AsyncFunctionDef_fields[]={
     "body",
     "decorator_list",
     "returns",
-    "docstring",
 };
 static PyTypeObject *ClassDef_type;
 _Py_IDENTIFIER(bases);
@@ -66,7 +62,6 @@ static char *ClassDef_fields[]={
     "keywords",
     "body",
     "decorator_list",
-    "docstring",
 };
 static PyTypeObject *Return_type;
 _Py_IDENTIFIER(value);
@@ -208,6 +203,11 @@ _Py_IDENTIFIER(right);
 static char *BinOp_fields[]={
     "left",
     "op",
+    "right",
+};
+static PyTypeObject *CoalesceOp_type;
+static char *CoalesceOp_fields[]={
+    "left",
     "right",
 };
 static PyTypeObject *UnaryOp_type;
@@ -367,7 +367,8 @@ static char *Tuple_fields[]={
 };
 static PyTypeObject *expr_context_type;
 static PyObject *Load_singleton, *Store_singleton, *Del_singleton,
-*AugLoad_singleton, *AugStore_singleton, *Param_singleton;
+*AugLoad_singleton, *AugStore_singleton, *Param_singleton,
+*LoadIfNotNone_singleton;
 static PyObject* ast2obj_expr_context(expr_context_ty);
 static PyTypeObject *Load_type;
 static PyTypeObject *Store_type;
@@ -375,6 +376,7 @@ static PyTypeObject *Del_type;
 static PyTypeObject *AugLoad_type;
 static PyTypeObject *AugStore_type;
 static PyTypeObject *Param_type;
+static PyTypeObject *LoadIfNotNone_type;
 static PyTypeObject *slice_type;
 static PyObject* ast2obj_slice(void*);
 static PyTypeObject *Slice_type;
@@ -404,7 +406,7 @@ static PyTypeObject *operator_type;
 static PyObject *Add_singleton, *Sub_singleton, *Mult_singleton,
 *MatMult_singleton, *Div_singleton, *Mod_singleton, *Pow_singleton,
 *LShift_singleton, *RShift_singleton, *BitOr_singleton, *BitXor_singleton,
-*BitAnd_singleton, *FloorDiv_singleton;
+*BitAnd_singleton, *FloorDiv_singleton, *Coalesce_singleton;
 static PyObject* ast2obj_operator(operator_ty);
 static PyTypeObject *Add_type;
 static PyTypeObject *Sub_type;
@@ -419,6 +421,7 @@ static PyTypeObject *BitOr_type;
 static PyTypeObject *BitXor_type;
 static PyTypeObject *BitAnd_type;
 static PyTypeObject *FloorDiv_type;
+static PyTypeObject *Coalesce_type;
 static PyTypeObject *unaryop_type;
 static PyObject *Invert_singleton, *Not_singleton, *UAdd_singleton,
 *USub_singleton;
@@ -538,10 +541,11 @@ ast_traverse(AST_object *self, visitproc visit, void *arg)
     return 0;
 }
 
-static void
+static int
 ast_clear(AST_object *self)
 {
     Py_CLEAR(self->dict);
+    return 0;
 }
 
 static int
@@ -852,7 +856,7 @@ static int init_types(void)
     mod_type = make_type("mod", &AST_type, NULL, 0);
     if (!mod_type) return 0;
     if (!add_attributes(mod_type, NULL, 0)) return 0;
-    Module_type = make_type("Module", mod_type, Module_fields, 2);
+    Module_type = make_type("Module", mod_type, Module_fields, 1);
     if (!Module_type) return 0;
     Interactive_type = make_type("Interactive", mod_type, Interactive_fields,
                                  1);
@@ -865,12 +869,12 @@ static int init_types(void)
     if (!stmt_type) return 0;
     if (!add_attributes(stmt_type, stmt_attributes, 2)) return 0;
     FunctionDef_type = make_type("FunctionDef", stmt_type, FunctionDef_fields,
-                                 6);
+                                 5);
     if (!FunctionDef_type) return 0;
     AsyncFunctionDef_type = make_type("AsyncFunctionDef", stmt_type,
-                                      AsyncFunctionDef_fields, 6);
+                                      AsyncFunctionDef_fields, 5);
     if (!AsyncFunctionDef_type) return 0;
-    ClassDef_type = make_type("ClassDef", stmt_type, ClassDef_fields, 6);
+    ClassDef_type = make_type("ClassDef", stmt_type, ClassDef_fields, 5);
     if (!ClassDef_type) return 0;
     Return_type = make_type("Return", stmt_type, Return_fields, 1);
     if (!Return_type) return 0;
@@ -923,6 +927,8 @@ static int init_types(void)
     if (!BoolOp_type) return 0;
     BinOp_type = make_type("BinOp", expr_type, BinOp_fields, 3);
     if (!BinOp_type) return 0;
+    CoalesceOp_type = make_type("CoalesceOp", expr_type, CoalesceOp_fields, 2);
+    if (!CoalesceOp_type) return 0;
     UnaryOp_type = make_type("UnaryOp", expr_type, UnaryOp_fields, 2);
     if (!UnaryOp_type) return 0;
     Lambda_type = make_type("Lambda", expr_type, Lambda_fields, 2);
@@ -1011,6 +1017,10 @@ static int init_types(void)
     if (!Param_type) return 0;
     Param_singleton = PyType_GenericNew(Param_type, NULL, NULL);
     if (!Param_singleton) return 0;
+    LoadIfNotNone_type = make_type("LoadIfNotNone", expr_context_type, NULL, 0);
+    if (!LoadIfNotNone_type) return 0;
+    LoadIfNotNone_singleton = PyType_GenericNew(LoadIfNotNone_type, NULL, NULL);
+    if (!LoadIfNotNone_singleton) return 0;
     slice_type = make_type("slice", &AST_type, NULL, 0);
     if (!slice_type) return 0;
     if (!add_attributes(slice_type, NULL, 0)) return 0;
@@ -1086,6 +1096,10 @@ static int init_types(void)
     if (!FloorDiv_type) return 0;
     FloorDiv_singleton = PyType_GenericNew(FloorDiv_type, NULL, NULL);
     if (!FloorDiv_singleton) return 0;
+    Coalesce_type = make_type("Coalesce", operator_type, NULL, 0);
+    if (!Coalesce_type) return 0;
+    Coalesce_singleton = PyType_GenericNew(Coalesce_type, NULL, NULL);
+    if (!Coalesce_singleton) return 0;
     unaryop_type = make_type("unaryop", &AST_type, NULL, 0);
     if (!unaryop_type) return 0;
     if (!add_attributes(unaryop_type, NULL, 0)) return 0;
@@ -1199,7 +1213,7 @@ static int obj2ast_alias(PyObject* obj, alias_ty* out, PyArena* arena);
 static int obj2ast_withitem(PyObject* obj, withitem_ty* out, PyArena* arena);
 
 mod_ty
-Module(asdl_seq * body, string docstring, PyArena *arena)
+Module(asdl_seq * body, PyArena *arena)
 {
     mod_ty p;
     p = (mod_ty)PyArena_Malloc(arena, sizeof(*p));
@@ -1207,7 +1221,6 @@ Module(asdl_seq * body, string docstring, PyArena *arena)
         return NULL;
     p->kind = Module_kind;
     p->v.Module.body = body;
-    p->v.Module.docstring = docstring;
     return p;
 }
 
@@ -1254,8 +1267,8 @@ Suite(asdl_seq * body, PyArena *arena)
 
 stmt_ty
 FunctionDef(identifier name, arguments_ty args, asdl_seq * body, asdl_seq *
-            decorator_list, expr_ty returns, string docstring, int lineno, int
-            col_offset, PyArena *arena)
+            decorator_list, expr_ty returns, int lineno, int col_offset,
+            PyArena *arena)
 {
     stmt_ty p;
     if (!name) {
@@ -1277,7 +1290,6 @@ FunctionDef(identifier name, arguments_ty args, asdl_seq * body, asdl_seq *
     p->v.FunctionDef.body = body;
     p->v.FunctionDef.decorator_list = decorator_list;
     p->v.FunctionDef.returns = returns;
-    p->v.FunctionDef.docstring = docstring;
     p->lineno = lineno;
     p->col_offset = col_offset;
     return p;
@@ -1285,8 +1297,8 @@ FunctionDef(identifier name, arguments_ty args, asdl_seq * body, asdl_seq *
 
 stmt_ty
 AsyncFunctionDef(identifier name, arguments_ty args, asdl_seq * body, asdl_seq
-                 * decorator_list, expr_ty returns, string docstring, int
-                 lineno, int col_offset, PyArena *arena)
+                 * decorator_list, expr_ty returns, int lineno, int col_offset,
+                 PyArena *arena)
 {
     stmt_ty p;
     if (!name) {
@@ -1308,7 +1320,6 @@ AsyncFunctionDef(identifier name, arguments_ty args, asdl_seq * body, asdl_seq
     p->v.AsyncFunctionDef.body = body;
     p->v.AsyncFunctionDef.decorator_list = decorator_list;
     p->v.AsyncFunctionDef.returns = returns;
-    p->v.AsyncFunctionDef.docstring = docstring;
     p->lineno = lineno;
     p->col_offset = col_offset;
     return p;
@@ -1316,8 +1327,8 @@ AsyncFunctionDef(identifier name, arguments_ty args, asdl_seq * body, asdl_seq
 
 stmt_ty
 ClassDef(identifier name, asdl_seq * bases, asdl_seq * keywords, asdl_seq *
-         body, asdl_seq * decorator_list, string docstring, int lineno, int
-         col_offset, PyArena *arena)
+         body, asdl_seq * decorator_list, int lineno, int col_offset, PyArena
+         *arena)
 {
     stmt_ty p;
     if (!name) {
@@ -1334,7 +1345,6 @@ ClassDef(identifier name, asdl_seq * bases, asdl_seq * keywords, asdl_seq *
     p->v.ClassDef.keywords = keywords;
     p->v.ClassDef.body = body;
     p->v.ClassDef.decorator_list = decorator_list;
-    p->v.ClassDef.docstring = docstring;
     p->lineno = lineno;
     p->col_offset = col_offset;
     return p;
@@ -1799,6 +1809,32 @@ BinOp(expr_ty left, operator_ty op, expr_ty right, int lineno, int col_offset,
     p->v.BinOp.left = left;
     p->v.BinOp.op = op;
     p->v.BinOp.right = right;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    return p;
+}
+
+expr_ty
+CoalesceOp(expr_ty left, expr_ty right, int lineno, int col_offset, PyArena
+           *arena)
+{
+    expr_ty p;
+    if (!left) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field left is required for CoalesceOp");
+        return NULL;
+    }
+    if (!right) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field right is required for CoalesceOp");
+        return NULL;
+    }
+    p = (expr_ty)PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = CoalesceOp_kind;
+    p->v.CoalesceOp.left = left;
+    p->v.CoalesceOp.right = right;
     p->lineno = lineno;
     p->col_offset = col_offset;
     return p;
@@ -2624,11 +2660,6 @@ ast2obj_mod(void* _o)
         if (_PyObject_SetAttrId(result, &PyId_body, value) == -1)
             goto failed;
         Py_DECREF(value);
-        value = ast2obj_string(o->v.Module.docstring);
-        if (!value) goto failed;
-        if (_PyObject_SetAttrId(result, &PyId_docstring, value) == -1)
-            goto failed;
-        Py_DECREF(value);
         break;
     case Interactive_kind:
         result = PyType_GenericNew(Interactive_type, NULL, NULL);
@@ -2703,11 +2734,6 @@ ast2obj_stmt(void* _o)
         if (_PyObject_SetAttrId(result, &PyId_returns, value) == -1)
             goto failed;
         Py_DECREF(value);
-        value = ast2obj_string(o->v.FunctionDef.docstring);
-        if (!value) goto failed;
-        if (_PyObject_SetAttrId(result, &PyId_docstring, value) == -1)
-            goto failed;
-        Py_DECREF(value);
         break;
     case AsyncFunctionDef_kind:
         result = PyType_GenericNew(AsyncFunctionDef_type, NULL, NULL);
@@ -2738,11 +2764,6 @@ ast2obj_stmt(void* _o)
         if (_PyObject_SetAttrId(result, &PyId_returns, value) == -1)
             goto failed;
         Py_DECREF(value);
-        value = ast2obj_string(o->v.AsyncFunctionDef.docstring);
-        if (!value) goto failed;
-        if (_PyObject_SetAttrId(result, &PyId_docstring, value) == -1)
-            goto failed;
-        Py_DECREF(value);
         break;
     case ClassDef_kind:
         result = PyType_GenericNew(ClassDef_type, NULL, NULL);
@@ -2770,11 +2791,6 @@ ast2obj_stmt(void* _o)
         value = ast2obj_list(o->v.ClassDef.decorator_list, ast2obj_expr);
         if (!value) goto failed;
         if (_PyObject_SetAttrId(result, &PyId_decorator_list, value) == -1)
-            goto failed;
-        Py_DECREF(value);
-        value = ast2obj_string(o->v.ClassDef.docstring);
-        if (!value) goto failed;
-        if (_PyObject_SetAttrId(result, &PyId_docstring, value) == -1)
             goto failed;
         Py_DECREF(value);
         break;
@@ -3142,6 +3158,20 @@ ast2obj_expr(void* _o)
             goto failed;
         Py_DECREF(value);
         value = ast2obj_expr(o->v.BinOp.right);
+        if (!value) goto failed;
+        if (_PyObject_SetAttrId(result, &PyId_right, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case CoalesceOp_kind:
+        result = PyType_GenericNew(CoalesceOp_type, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_expr(o->v.CoalesceOp.left);
+        if (!value) goto failed;
+        if (_PyObject_SetAttrId(result, &PyId_left, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(o->v.CoalesceOp.right);
         if (!value) goto failed;
         if (_PyObject_SetAttrId(result, &PyId_right, value) == -1)
             goto failed;
@@ -3574,6 +3604,9 @@ PyObject* ast2obj_expr_context(expr_context_ty o)
         case Param:
             Py_INCREF(Param_singleton);
             return Param_singleton;
+        case LoadIfNotNone:
+            Py_INCREF(LoadIfNotNone_singleton);
+            return LoadIfNotNone_singleton;
         default:
             /* should never happen, but just in case ... */
             PyErr_Format(PyExc_SystemError, "unknown expr_context found");
@@ -3692,6 +3725,9 @@ PyObject* ast2obj_operator(operator_ty o)
         case FloorDiv:
             Py_INCREF(FloorDiv_singleton);
             return FloorDiv_singleton;
+        case Coalesce:
+            Py_INCREF(Coalesce_singleton);
+            return Coalesce_singleton;
         default:
             /* should never happen, but just in case ... */
             PyErr_Format(PyExc_SystemError, "unknown operator found");
@@ -4031,7 +4067,6 @@ obj2ast_mod(PyObject* obj, mod_ty* out, PyArena* arena)
     }
     if (isinstance) {
         asdl_seq* body;
-        string docstring;
 
         if (_PyObject_LookupAttrId(obj, &PyId_body, &tmp) < 0) {
             return 1;
@@ -4063,20 +4098,7 @@ obj2ast_mod(PyObject* obj, mod_ty* out, PyArena* arena)
             }
             Py_CLEAR(tmp);
         }
-        if (_PyObject_LookupAttrId(obj, &PyId_docstring, &tmp) < 0) {
-            return 1;
-        }
-        if (tmp == NULL || tmp == Py_None) {
-            Py_CLEAR(tmp);
-            docstring = NULL;
-        }
-        else {
-            int res;
-            res = obj2ast_string(tmp, &docstring, arena);
-            if (res != 0) goto failed;
-            Py_CLEAR(tmp);
-        }
-        *out = Module(body, docstring, arena);
+        *out = Module(body, arena);
         if (*out == NULL) goto failed;
         return 0;
     }
@@ -4242,7 +4264,6 @@ obj2ast_stmt(PyObject* obj, stmt_ty* out, PyArena* arena)
         asdl_seq* body;
         asdl_seq* decorator_list;
         expr_ty returns;
-        string docstring;
 
         if (_PyObject_LookupAttrId(obj, &PyId_name, &tmp) < 0) {
             return 1;
@@ -4343,21 +4364,8 @@ obj2ast_stmt(PyObject* obj, stmt_ty* out, PyArena* arena)
             if (res != 0) goto failed;
             Py_CLEAR(tmp);
         }
-        if (_PyObject_LookupAttrId(obj, &PyId_docstring, &tmp) < 0) {
-            return 1;
-        }
-        if (tmp == NULL || tmp == Py_None) {
-            Py_CLEAR(tmp);
-            docstring = NULL;
-        }
-        else {
-            int res;
-            res = obj2ast_string(tmp, &docstring, arena);
-            if (res != 0) goto failed;
-            Py_CLEAR(tmp);
-        }
-        *out = FunctionDef(name, args, body, decorator_list, returns,
-                           docstring, lineno, col_offset, arena);
+        *out = FunctionDef(name, args, body, decorator_list, returns, lineno,
+                           col_offset, arena);
         if (*out == NULL) goto failed;
         return 0;
     }
@@ -4371,7 +4379,6 @@ obj2ast_stmt(PyObject* obj, stmt_ty* out, PyArena* arena)
         asdl_seq* body;
         asdl_seq* decorator_list;
         expr_ty returns;
-        string docstring;
 
         if (_PyObject_LookupAttrId(obj, &PyId_name, &tmp) < 0) {
             return 1;
@@ -4472,21 +4479,8 @@ obj2ast_stmt(PyObject* obj, stmt_ty* out, PyArena* arena)
             if (res != 0) goto failed;
             Py_CLEAR(tmp);
         }
-        if (_PyObject_LookupAttrId(obj, &PyId_docstring, &tmp) < 0) {
-            return 1;
-        }
-        if (tmp == NULL || tmp == Py_None) {
-            Py_CLEAR(tmp);
-            docstring = NULL;
-        }
-        else {
-            int res;
-            res = obj2ast_string(tmp, &docstring, arena);
-            if (res != 0) goto failed;
-            Py_CLEAR(tmp);
-        }
         *out = AsyncFunctionDef(name, args, body, decorator_list, returns,
-                                docstring, lineno, col_offset, arena);
+                                lineno, col_offset, arena);
         if (*out == NULL) goto failed;
         return 0;
     }
@@ -4500,7 +4494,6 @@ obj2ast_stmt(PyObject* obj, stmt_ty* out, PyArena* arena)
         asdl_seq* keywords;
         asdl_seq* body;
         asdl_seq* decorator_list;
-        string docstring;
 
         if (_PyObject_LookupAttrId(obj, &PyId_name, &tmp) < 0) {
             return 1;
@@ -4635,21 +4628,8 @@ obj2ast_stmt(PyObject* obj, stmt_ty* out, PyArena* arena)
             }
             Py_CLEAR(tmp);
         }
-        if (_PyObject_LookupAttrId(obj, &PyId_docstring, &tmp) < 0) {
-            return 1;
-        }
-        if (tmp == NULL || tmp == Py_None) {
-            Py_CLEAR(tmp);
-            docstring = NULL;
-        }
-        else {
-            int res;
-            res = obj2ast_string(tmp, &docstring, arena);
-            if (res != 0) goto failed;
-            Py_CLEAR(tmp);
-        }
-        *out = ClassDef(name, bases, keywords, body, decorator_list, docstring,
-                        lineno, col_offset, arena);
+        *out = ClassDef(name, bases, keywords, body, decorator_list, lineno,
+                        col_offset, arena);
         if (*out == NULL) goto failed;
         return 0;
     }
@@ -6018,6 +5998,44 @@ obj2ast_expr(PyObject* obj, expr_ty* out, PyArena* arena)
         if (*out == NULL) goto failed;
         return 0;
     }
+    isinstance = PyObject_IsInstance(obj, (PyObject*)CoalesceOp_type);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        expr_ty left;
+        expr_ty right;
+
+        if (_PyObject_LookupAttrId(obj, &PyId_left, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"left\" missing from CoalesceOp");
+            return 1;
+        }
+        else {
+            int res;
+            res = obj2ast_expr(tmp, &left, arena);
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (_PyObject_LookupAttrId(obj, &PyId_right, &tmp) < 0) {
+            return 1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"right\" missing from CoalesceOp");
+            return 1;
+        }
+        else {
+            int res;
+            res = obj2ast_expr(tmp, &right, arena);
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        *out = CoalesceOp(left, right, lineno, col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
     isinstance = PyObject_IsInstance(obj, (PyObject*)UnaryOp_type);
     if (isinstance == -1) {
         return 1;
@@ -7349,6 +7367,14 @@ obj2ast_expr_context(PyObject* obj, expr_context_ty* out, PyArena* arena)
         *out = Param;
         return 0;
     }
+    isinstance = PyObject_IsInstance(obj, (PyObject *)LoadIfNotNone_type);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        *out = LoadIfNotNone;
+        return 0;
+    }
 
     PyErr_Format(PyExc_TypeError, "expected some sort of expr_context, but got %R", obj);
     return 1;
@@ -7622,6 +7648,14 @@ obj2ast_operator(PyObject* obj, operator_ty* out, PyArena* arena)
     }
     if (isinstance) {
         *out = FloorDiv;
+        return 0;
+    }
+    isinstance = PyObject_IsInstance(obj, (PyObject *)Coalesce_type);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        *out = Coalesce;
         return 0;
     }
 
@@ -8388,6 +8422,8 @@ PyInit__ast(void)
         NULL;
     if (PyDict_SetItemString(d, "BinOp", (PyObject*)BinOp_type) < 0) return
         NULL;
+    if (PyDict_SetItemString(d, "CoalesceOp", (PyObject*)CoalesceOp_type) < 0)
+        return NULL;
     if (PyDict_SetItemString(d, "UnaryOp", (PyObject*)UnaryOp_type) < 0) return
         NULL;
     if (PyDict_SetItemString(d, "Lambda", (PyObject*)Lambda_type) < 0) return
@@ -8451,6 +8487,8 @@ PyInit__ast(void)
         return NULL;
     if (PyDict_SetItemString(d, "Param", (PyObject*)Param_type) < 0) return
         NULL;
+    if (PyDict_SetItemString(d, "LoadIfNotNone", (PyObject*)LoadIfNotNone_type)
+        < 0) return NULL;
     if (PyDict_SetItemString(d, "slice", (PyObject*)slice_type) < 0) return
         NULL;
     if (PyDict_SetItemString(d, "Slice", (PyObject*)Slice_type) < 0) return
@@ -8484,6 +8522,8 @@ PyInit__ast(void)
     if (PyDict_SetItemString(d, "BitAnd", (PyObject*)BitAnd_type) < 0) return
         NULL;
     if (PyDict_SetItemString(d, "FloorDiv", (PyObject*)FloorDiv_type) < 0)
+        return NULL;
+    if (PyDict_SetItemString(d, "Coalesce", (PyObject*)Coalesce_type) < 0)
         return NULL;
     if (PyDict_SetItemString(d, "unaryop", (PyObject*)unaryop_type) < 0) return
         NULL;

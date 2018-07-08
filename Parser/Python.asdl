@@ -6,7 +6,7 @@
 
 module Python
 {
-    mod = Module(stmt* body, string? docstring)
+    mod = Module(stmt* body)
         | Interactive(stmt* body)
         | Expression(expr body)
 
@@ -14,18 +14,15 @@ module Python
         | Suite(stmt* body)
 
     stmt = FunctionDef(identifier name, arguments args,
-                       stmt* body, expr* decorator_list, expr? returns,
-                       string? docstring)
+                       stmt* body, expr* decorator_list, expr? returns)
           | AsyncFunctionDef(identifier name, arguments args,
-                             stmt* body, expr* decorator_list, expr? returns,
-                             string? docstring)
+                             stmt* body, expr* decorator_list, expr? returns)
 
           | ClassDef(identifier name,
              expr* bases,
              keyword* keywords,
              stmt* body,
-             expr* decorator_list,
-             string? docstring)
+             expr* decorator_list)
           | Return(expr? value)
 
           | Delete(expr* targets)
@@ -61,6 +58,7 @@ module Python
           -- BoolOp() can use left & right?
     expr = BoolOp(boolop op, expr* values)
          | BinOp(expr left, operator op, expr right)
+         | CoalesceOp(expr left, expr right)
          | UnaryOp(unaryop op, expr operand)
          | Lambda(arguments args, expr body)
          | IfExp(expr test, expr body, expr orelse)
@@ -99,7 +97,7 @@ module Python
           -- col_offset is the byte offset in the utf8 string the parser uses
           attributes (int lineno, int col_offset)
 
-    expr_context = Load | Store | Del | AugLoad | AugStore | Param
+    expr_context = Load | Store | Del | AugLoad | AugStore | Param | LoadIfNotNone
 
     slice = Slice(expr? lower, expr? upper, expr? step)
           | ExtSlice(slice* dims)
@@ -107,8 +105,9 @@ module Python
 
     boolop = And | Or
 
+    -- Coalesce operator is only used for augassign
     operator = Add | Sub | Mult | MatMult | Div | Mod | Pow | LShift
-                 | RShift | BitOr | BitXor | BitAnd | FloorDiv
+                 | RShift | BitOr | BitXor | BitAnd | FloorDiv | Coalesce
 
     unaryop = Invert | Not | UAdd | USub
 

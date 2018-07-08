@@ -111,6 +111,10 @@ const char *_PyParser_TokenNames[] = {
     "COMMENT",
     "NL",
     "ENCODING",
+    "MAYBEDOT",
+    "MAYBELSQB",
+    "MAYBEMAYBE",
+    "MAYBEMAYBEEQUAL",
     "<N_TOKENS>"
 };
 
@@ -1222,6 +1226,11 @@ PyToken_TwoChars(int c1, int c2)
     case ':':
         switch (c2) {
         case '=':               return COLONEQUAL;
+    case '?':
+        switch (c2) {
+        case '.':               return MAYBEDOT;
+        case '[':               return MAYBELSQB;
+        case '?':               return MAYBEMAYBE;
         }
         break;
     }
@@ -1280,6 +1289,11 @@ PyToken_ThreeChars(int c1, int c2, int c3)
                 return ELLIPSIS;
             }
             break;
+        }
+        break;
+    case '?':
+        if (c2 == '?' && c3 == '=') {
+            return MAYBEMAYBEEQUAL;
         }
         break;
     }
@@ -1794,6 +1808,10 @@ tok_get(struct tok_state *tok, char **p_start, char **p_end)
             }
             *p_start = tok->start;
             *p_end = tok->cur;
+
+            if (token == MAYBELSQB) {
+                tok->level++;
+            }
             return token;
         }
         tok_backup(tok, c2);

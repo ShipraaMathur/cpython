@@ -2822,6 +2822,26 @@ main_loop:
             DISPATCH();
         }
 
+        TARGET(JUMP_IF_NONE) {
+            PyObject *cond = TOP();
+            if (cond != Py_None) {
+                FAST_DISPATCH();
+            }
+            JUMPTO(oparg);
+            DISPATCH();
+        }
+
+        TARGET(JUMP_IF_NOT_NONE_OR_POP) {
+            PyObject *cond = TOP();
+            if (cond != Py_None) {
+                JUMPTO(oparg);
+                FAST_DISPATCH();
+            }
+            STACKADJ(-1);
+            Py_DECREF(cond);
+            DISPATCH();
+        }
+
         PREDICTED(JUMP_ABSOLUTE);
         TARGET(JUMP_ABSOLUTE) {
             JUMPTO(oparg);

@@ -9,7 +9,7 @@ typedef struct _stmt *stmt_ty;
 typedef struct _expr *expr_ty;
 
 typedef enum _expr_context { Load=1, Store=2, Del=3, AugLoad=4, AugStore=5,
-                             Param=6 } expr_context_ty;
+                             Param=6, LoadIfNotNone=7 } expr_context_ty;
 
 typedef struct _slice *slice_ty;
 
@@ -17,7 +17,7 @@ typedef enum _boolop { And=1, Or=2 } boolop_ty;
 
 typedef enum _operator { Add=1, Sub=2, Mult=3, MatMult=4, Div=5, Mod=6, Pow=7,
                          LShift=8, RShift=9, BitOr=10, BitXor=11, BitAnd=12,
-                         FloorDiv=13 } operator_ty;
+                         FloorDiv=13, Coalesce=14 } operator_ty;
 
 typedef enum _unaryop { Invert=1, Not=2, UAdd=3, USub=4 } unaryop_ty;
 
@@ -46,7 +46,6 @@ struct _mod {
     union {
         struct {
             asdl_seq *body;
-            string docstring;
         } Module;
 
         struct {
@@ -81,7 +80,6 @@ struct _stmt {
             asdl_seq *body;
             asdl_seq *decorator_list;
             expr_ty returns;
-            string docstring;
         } FunctionDef;
 
         struct {
@@ -90,7 +88,6 @@ struct _stmt {
             asdl_seq *body;
             asdl_seq *decorator_list;
             expr_ty returns;
-            string docstring;
         } AsyncFunctionDef;
 
         struct {
@@ -99,7 +96,6 @@ struct _stmt {
             asdl_seq *keywords;
             asdl_seq *body;
             asdl_seq *decorator_list;
-            string docstring;
         } ClassDef;
 
         struct {
@@ -208,16 +204,16 @@ struct _stmt {
     int col_offset;
 };
 
-enum _expr_kind {BoolOp_kind=1, BinOp_kind=2, UnaryOp_kind=3, Lambda_kind=4,
-                  IfExp_kind=5, Dict_kind=6, Set_kind=7, ListComp_kind=8,
-                  SetComp_kind=9, DictComp_kind=10, GeneratorExp_kind=11,
-                  AssignExp_kind=12, Await_kind=13, Yield_kind=14,
-                  YieldFrom_kind=15, Compare_kind=16, Call_kind=17,
-                  Num_kind=18, Str_kind=19, FormattedValue_kind=20,
-                  JoinedStr_kind=21, Bytes_kind=22, NameConstant_kind=23,
-                  Ellipsis_kind=24, Constant_kind=25, Attribute_kind=26,
-                  Subscript_kind=27, Starred_kind=28, Name_kind=29,
-                  List_kind=30, Tuple_kind=31};
+enum _expr_kind {BoolOp_kind=1, BinOp_kind=2, CoalesceOp_kind=3,
+                  UnaryOp_kind=4, Lambda_kind=5, IfExp_kind=6, Dict_kind=7,
+                  Set_kind=8, ListComp_kind=9, SetComp_kind=10,
+                  DictComp_kind=11, GeneratorExp_kind=12, AssignExp_kind=13,
+                  Await_kind=14, Yield_kind=15, YieldFrom_kind=16,
+                  Compare_kind=17, Call_kind=18, Num_kind=19, Str_kind=20,
+                  FormattedValue_kind=21, JoinedStr_kind=22, Bytes_kind=23,
+                  NameConstant_kind=24, Ellipsis_kind=25, Constant_kind=26,
+                  Attribute_kind=27, Subscript_kind=28, Starred_kind=29,
+                  Name_kind=30, List_kind=31, Tuple_kind=32};
 struct _expr {
     enum _expr_kind kind;
     union {
@@ -231,6 +227,11 @@ struct _expr {
             operator_ty op;
             expr_ty right;
         } BinOp;
+
+        struct {
+            expr_ty left;
+            expr_ty right;
+        } CoalesceOp;
 
         struct {
             unaryop_ty op;
@@ -449,27 +450,26 @@ struct _withitem {
 };
 
 
-#define Module(a0, a1, a2) _Py_Module(a0, a1, a2)
-mod_ty _Py_Module(asdl_seq * body, string docstring, PyArena *arena);
+#define Module(a0, a1) _Py_Module(a0, a1)
+mod_ty _Py_Module(asdl_seq * body, PyArena *arena);
 #define Interactive(a0, a1) _Py_Interactive(a0, a1)
 mod_ty _Py_Interactive(asdl_seq * body, PyArena *arena);
 #define Expression(a0, a1) _Py_Expression(a0, a1)
 mod_ty _Py_Expression(expr_ty body, PyArena *arena);
 #define Suite(a0, a1) _Py_Suite(a0, a1)
 mod_ty _Py_Suite(asdl_seq * body, PyArena *arena);
-#define FunctionDef(a0, a1, a2, a3, a4, a5, a6, a7, a8) _Py_FunctionDef(a0, a1, a2, a3, a4, a5, a6, a7, a8)
+#define FunctionDef(a0, a1, a2, a3, a4, a5, a6, a7) _Py_FunctionDef(a0, a1, a2, a3, a4, a5, a6, a7)
 stmt_ty _Py_FunctionDef(identifier name, arguments_ty args, asdl_seq * body,
-                        asdl_seq * decorator_list, expr_ty returns, string
-                        docstring, int lineno, int col_offset, PyArena *arena);
-#define AsyncFunctionDef(a0, a1, a2, a3, a4, a5, a6, a7, a8) _Py_AsyncFunctionDef(a0, a1, a2, a3, a4, a5, a6, a7, a8)
+                        asdl_seq * decorator_list, expr_ty returns, int lineno,
+                        int col_offset, PyArena *arena);
+#define AsyncFunctionDef(a0, a1, a2, a3, a4, a5, a6, a7) _Py_AsyncFunctionDef(a0, a1, a2, a3, a4, a5, a6, a7)
 stmt_ty _Py_AsyncFunctionDef(identifier name, arguments_ty args, asdl_seq *
                              body, asdl_seq * decorator_list, expr_ty returns,
-                             string docstring, int lineno, int col_offset,
-                             PyArena *arena);
-#define ClassDef(a0, a1, a2, a3, a4, a5, a6, a7, a8) _Py_ClassDef(a0, a1, a2, a3, a4, a5, a6, a7, a8)
+                             int lineno, int col_offset, PyArena *arena);
+#define ClassDef(a0, a1, a2, a3, a4, a5, a6, a7) _Py_ClassDef(a0, a1, a2, a3, a4, a5, a6, a7)
 stmt_ty _Py_ClassDef(identifier name, asdl_seq * bases, asdl_seq * keywords,
-                     asdl_seq * body, asdl_seq * decorator_list, string
-                     docstring, int lineno, int col_offset, PyArena *arena);
+                     asdl_seq * body, asdl_seq * decorator_list, int lineno,
+                     int col_offset, PyArena *arena);
 #define Return(a0, a1, a2, a3) _Py_Return(a0, a1, a2, a3)
 stmt_ty _Py_Return(expr_ty value, int lineno, int col_offset, PyArena *arena);
 #define Delete(a0, a1, a2, a3) _Py_Delete(a0, a1, a2, a3)
@@ -538,6 +538,9 @@ expr_ty _Py_BoolOp(boolop_ty op, asdl_seq * values, int lineno, int col_offset,
 #define BinOp(a0, a1, a2, a3, a4, a5) _Py_BinOp(a0, a1, a2, a3, a4, a5)
 expr_ty _Py_BinOp(expr_ty left, operator_ty op, expr_ty right, int lineno, int
                   col_offset, PyArena *arena);
+#define CoalesceOp(a0, a1, a2, a3, a4) _Py_CoalesceOp(a0, a1, a2, a3, a4)
+expr_ty _Py_CoalesceOp(expr_ty left, expr_ty right, int lineno, int col_offset,
+                       PyArena *arena);
 #define UnaryOp(a0, a1, a2, a3, a4) _Py_UnaryOp(a0, a1, a2, a3, a4)
 expr_ty _Py_UnaryOp(unaryop_ty op, expr_ty operand, int lineno, int col_offset,
                     PyArena *arena);
