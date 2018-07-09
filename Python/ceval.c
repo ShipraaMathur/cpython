@@ -4417,8 +4417,15 @@ maybe_call_line_trace(Py_tracefunc func, PyObject *obj,
 void
 PyEval_SetProfile(Py_tracefunc func, PyObject *arg)
 {
-    PyThreadState *tstate = _PyThreadState_GET();
-    PyObject *temp = tstate->c_profileobj;
+    PyThreadState *tstate;
+    PyObject *temp;
+
+    if (PySys_Audit("sys.setprofile", NULL) < 0) {
+        return;
+    }
+
+    tstate = _PyThreadState_GET();
+    temp = tstate->c_profileobj;
     Py_XINCREF(arg);
     tstate->c_profilefunc = NULL;
     tstate->c_profileobj = NULL;
@@ -4434,8 +4441,15 @@ PyEval_SetProfile(Py_tracefunc func, PyObject *arg)
 void
 PyEval_SetTrace(Py_tracefunc func, PyObject *arg)
 {
-    PyThreadState *tstate = _PyThreadState_GET();
-    PyObject *temp = tstate->c_traceobj;
+    PyThreadState *tstate;
+    PyObject *temp;
+
+    if (PySys_Audit("sys.settrace", NULL) < 0) {
+        return;
+    }
+
+    tstate = _PyThreadState_GET();
+    temp = tstate->c_traceobj;
     _Py_TracingPossible += (func != NULL) - (tstate->c_tracefunc != NULL);
     Py_XINCREF(arg);
     tstate->c_tracefunc = NULL;
@@ -4470,6 +4484,10 @@ _PyEval_SetCoroutineWrapper(PyObject *wrapper)
 {
     PyThreadState *tstate = _PyThreadState_GET();
 
+    if (PySys_Audit("sys.set_coroutine_wrapper", NULL) < 0) {
+        return;
+    }
+
     Py_XINCREF(wrapper);
     Py_XSETREF(tstate->coroutine_wrapper, wrapper);
 }
@@ -4486,6 +4504,10 @@ _PyEval_SetAsyncGenFirstiter(PyObject *firstiter)
 {
     PyThreadState *tstate = _PyThreadState_GET();
 
+    if (PySys_Audit("sys.set_asyncgen_hook_firstiter", NULL) < 0) {
+        return;
+    }
+
     Py_XINCREF(firstiter);
     Py_XSETREF(tstate->async_gen_firstiter, firstiter);
 }
@@ -4501,6 +4523,10 @@ void
 _PyEval_SetAsyncGenFinalizer(PyObject *finalizer)
 {
     PyThreadState *tstate = _PyThreadState_GET();
+
+    if (PySys_Audit("sys.set_asyncgen_hook_finalizer", NULL) < 0) {
+        return;
+    }
 
     Py_XINCREF(finalizer);
     Py_XSETREF(tstate->async_gen_finalizer, finalizer);

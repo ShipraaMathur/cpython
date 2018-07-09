@@ -1059,7 +1059,13 @@ run_mod(mod_ty mod, PyObject *filename, PyObject *globals, PyObject *locals,
     co = PyAST_CompileObject(mod, filename, flags, -1, arena);
     if (co == NULL)
         return NULL;
-    v = run_eval_code_obj(co, globals, locals);
+
+    if (PySys_Audit("exec", "O", co) < 0) {
+        Py_DECREF(co);
+        return NULL;
+    }
+
+    v = PyEval_EvalCode((PyObject*)co, globals, locals);
     Py_DECREF(co);
     return v;
 }
