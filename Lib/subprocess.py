@@ -720,7 +720,7 @@ class Popen(object):
         # code must re-check self.returncode to see if another thread just
         # finished a waitpid() call.
         self._waitpid_lock = threading.Lock()
-
+        sys.audit('subprocess.popen', args, shell)
         self._input = None
         self._communication_started = False
         if bufsize is None:
