@@ -1,7 +1,8 @@
 #define PY_SSIZE_T_CLEAN
 #include "Python.h"
 #include "structmember.h"
-#include "accu.h"
+#include "pycore_accu.h"
+#include "pycore_object.h"
 #include "_iomodule.h"
 
 /* Implementation note: the buffer is always at least one character longer
@@ -410,7 +411,7 @@ stringio_iternext(stringio *self)
         line = PyObject_CallMethodObjArgs((PyObject *)self,
                                            _PyIO_str_readline, NULL);
         if (line && !PyUnicode_Check(line)) {
-            PyErr_Format(PyExc_IOError,
+            PyErr_Format(PyExc_OSError,
                          "readline() should have returned a str object, "
                          "not '%.200s'", Py_TYPE(line)->tp_name);
             Py_DECREF(line);
@@ -498,7 +499,7 @@ _io_StringIO_seek_impl(stringio *self, Py_ssize_t pos, int whence)
         return NULL;
     }
     else if (whence != 0 && pos != 0) {
-        PyErr_SetString(PyExc_IOError,
+        PyErr_SetString(PyExc_OSError,
                         "Can't do nonzero cur-relative seeks");
         return NULL;
     }
@@ -812,7 +813,7 @@ _io_StringIO_seekable_impl(stringio *self)
 */
 
 static PyObject *
-stringio_getstate(stringio *self)
+stringio_getstate(stringio *self, PyObject *Py_UNUSED(ignored))
 {
     PyObject *initvalue = _io_StringIO_getvalue_impl(self);
     PyObject *dict;
@@ -826,8 +827,10 @@ stringio_getstate(stringio *self)
     }
     else {
         dict = PyDict_Copy(self->dict);
-        if (dict == NULL)
+        if (dict == NULL) {
+            Py_DECREF(initvalue);
             return NULL;
+        }
     }
 
     state = Py_BuildValue("(OOnN)", initvalue,

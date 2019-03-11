@@ -107,9 +107,14 @@ static void
 TryAddRef(StgDictObject *dict, CDataObject *obj)
 {
     IUnknown *punk;
+    _Py_IDENTIFIER(_needs_com_addref_);
 
-    if (NULL == PyDict_GetItemString((PyObject *)dict, "_needs_com_addref_"))
+    if (!_PyDict_GetItemIdWithError((PyObject *)dict, &PyId__needs_com_addref_)) {
+        if (PyErr_Occurred()) {
+            PrintError("getting _needs_com_addref_");
+        }
         return;
+    }
 
     punk = *(IUnknown **)obj->b_ptr;
     if (punk)
@@ -137,9 +142,7 @@ static void _CallPythonObject(void *mem,
     Py_ssize_t nArgs;
     PyObject *error_object = NULL;
     int *space;
-#ifdef WITH_THREAD
     PyGILState_STATE state = PyGILState_Ensure();
-#endif
 
     nArgs = PySequence_Length(converters);
     /* Hm. What to return in case of error?
@@ -281,9 +284,7 @@ if (x == NULL) _PyTraceback_Add(what, "_ctypes/callbacks.c", __LINE__ - 1), PyEr
     Py_XDECREF(result);
   Done:
     Py_XDECREF(arglist);
-#ifdef WITH_THREAD
     PyGILState_Release(state);
-#endif
 }
 
 static void closure_fcn(ffi_cif *cif,
@@ -309,7 +310,6 @@ static CThunkObject* CThunkObject_new(Py_ssize_t nArgs)
 
     p = PyObject_GC_NewVar(CThunkObject, &PyCThunk_Type, nArgs);
     if (p == NULL) {
-        PyErr_NoMemory();
         return NULL;
     }
 
@@ -347,7 +347,7 @@ CThunkObject *_ctypes_alloc_callback(PyObject *callable,
     assert(CThunk_CheckExact((PyObject *)p));
 
     p->pcl_write = ffi_closure_alloc(sizeof(ffi_closure),
-									 &p->pcl_exec);
+                                                                         &p->pcl_exec);
     if (p->pcl_write == NULL) {
         PyErr_NoMemory();
         goto error;
@@ -397,8 +397,8 @@ CThunkObject *_ctypes_alloc_callback(PyObject *callable,
     result = ffi_prep_closure(p->pcl_write, &p->cif, closure_fcn, p);
 #else
     result = ffi_prep_closure_loc(p->pcl_write, &p->cif, closure_fcn,
-				  p,
-				  p->pcl_exec);
+                                  p,
+                                  p->pcl_exec);
 #endif
     if (result != FFI_OK) {
         PyErr_Format(PyExc_RuntimeError,
@@ -422,9 +422,7 @@ CThunkObject *_ctypes_alloc_callback(PyObject *callable,
 static void LoadPython(void)
 {
     if (!Py_IsInitialized()) {
-#ifdef WITH_THREAD
         PyEval_InitThreads();
-#endif
         Py_Initialize();
     }
 }
@@ -495,18 +493,12 @@ STDAPI DllGetClassObject(REFCLSID rclsid,
                          LPVOID *ppv)
 {
     long result;
-#ifdef WITH_THREAD
     PyGILState_STATE state;
-#endif
 
     LoadPython();
-#ifdef WITH_THREAD
     state = PyGILState_Ensure();
-#endif
     result = Call_GetClassObject(rclsid, riid, ppv);
-#ifdef WITH_THREAD
     PyGILState_Release(state);
-#endif
     return result;
 }
 
@@ -558,13 +550,9 @@ long Call_CanUnloadNow(void)
 STDAPI DllCanUnloadNow(void)
 {
     long result;
-#ifdef WITH_THREAD
     PyGILState_STATE state = PyGILState_Ensure();
-#endif
     result = Call_CanUnloadNow();
-#ifdef WITH_THREAD
     PyGILState_Release(state);
-#endif
     return result;
 }
 

@@ -190,13 +190,13 @@ dl_funcptr _PyImport_FindSharedFuncptrWindows(const char *prefix,
 {
     dl_funcptr p;
     char funcname[258], *import_python;
-    wchar_t *wpathname;
+    const wchar_t *wpathname;
 
 #ifndef _DEBUG
     _Py_CheckPython3();
 #endif
 
-    wpathname = PyUnicode_AsUnicode(pathname);
+    wpathname = _PyUnicode_AsUnicode(pathname);
     if (wpathname == NULL)
         return NULL;
 
@@ -218,8 +218,10 @@ dl_funcptr _PyImport_FindSharedFuncptrWindows(const char *prefix,
         /* We use LoadLibraryEx so Windows looks for dependent DLLs
             in directory of pathname first. */
         /* XXX This call doesn't exist in Windows CE */
+        Py_BEGIN_ALLOW_THREADS
         hDLL = LoadLibraryExW(wpathname, NULL,
                               LOAD_WITH_ALTERED_SEARCH_PATH);
+        Py_END_ALLOW_THREADS
 #if HAVE_SXS
         _Py_DeactivateActCtx(cookie);
 #endif
@@ -298,11 +300,15 @@ dl_funcptr _PyImport_FindSharedFuncptrWindows(const char *prefix,
                              "Module use of %.150s conflicts "
                              "with this version of Python.",
                              import_python);
+                Py_BEGIN_ALLOW_THREADS
                 FreeLibrary(hDLL);
+                Py_END_ALLOW_THREADS
                 return NULL;
             }
         }
+        Py_BEGIN_ALLOW_THREADS
         p = GetProcAddress(hDLL, funcname);
+        Py_END_ALLOW_THREADS
     }
 
     return p;

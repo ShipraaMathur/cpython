@@ -21,38 +21,39 @@
 #endif /* HAVE_SYS_STAT_H */
 
 #ifdef MS_WINDOWS
-#include <consoleapi.h>
+#include <windows.h>
 #endif
 
 /* Various interned strings */
 
-PyObject *_PyIO_str_close;
-PyObject *_PyIO_str_closed;
-PyObject *_PyIO_str_decode;
-PyObject *_PyIO_str_encode;
-PyObject *_PyIO_str_fileno;
-PyObject *_PyIO_str_flush;
-PyObject *_PyIO_str_getstate;
-PyObject *_PyIO_str_isatty;
-PyObject *_PyIO_str_newlines;
-PyObject *_PyIO_str_nl;
-PyObject *_PyIO_str_read;
-PyObject *_PyIO_str_read1;
-PyObject *_PyIO_str_readable;
-PyObject *_PyIO_str_readall;
-PyObject *_PyIO_str_readinto;
-PyObject *_PyIO_str_readline;
-PyObject *_PyIO_str_reset;
-PyObject *_PyIO_str_seek;
-PyObject *_PyIO_str_seekable;
-PyObject *_PyIO_str_setstate;
-PyObject *_PyIO_str_tell;
-PyObject *_PyIO_str_truncate;
-PyObject *_PyIO_str_writable;
-PyObject *_PyIO_str_write;
+PyObject *_PyIO_str_close = NULL;
+PyObject *_PyIO_str_closed = NULL;
+PyObject *_PyIO_str_decode = NULL;
+PyObject *_PyIO_str_encode = NULL;
+PyObject *_PyIO_str_fileno = NULL;
+PyObject *_PyIO_str_flush = NULL;
+PyObject *_PyIO_str_getstate = NULL;
+PyObject *_PyIO_str_isatty = NULL;
+PyObject *_PyIO_str_newlines = NULL;
+PyObject *_PyIO_str_nl = NULL;
+PyObject *_PyIO_str_peek = NULL;
+PyObject *_PyIO_str_read = NULL;
+PyObject *_PyIO_str_read1 = NULL;
+PyObject *_PyIO_str_readable = NULL;
+PyObject *_PyIO_str_readall = NULL;
+PyObject *_PyIO_str_readinto = NULL;
+PyObject *_PyIO_str_readline = NULL;
+PyObject *_PyIO_str_reset = NULL;
+PyObject *_PyIO_str_seek = NULL;
+PyObject *_PyIO_str_seekable = NULL;
+PyObject *_PyIO_str_setstate = NULL;
+PyObject *_PyIO_str_tell = NULL;
+PyObject *_PyIO_str_truncate = NULL;
+PyObject *_PyIO_str_writable = NULL;
+PyObject *_PyIO_str_write = NULL;
 
-PyObject *_PyIO_empty_str;
-PyObject *_PyIO_empty_bytes;
+PyObject *_PyIO_empty_str = NULL;
+PyObject *_PyIO_empty_bytes = NULL;
 
 PyDoc_STRVAR(module_doc,
 "The io module provides the Python interfaces to stream handling. The\n"
@@ -61,7 +62,7 @@ PyDoc_STRVAR(module_doc,
 "At the top of the I/O hierarchy is the abstract base class IOBase. It\n"
 "defines the basic interface to a stream. Note, however, that there is no\n"
 "separation between reading and writing to streams; implementations are\n"
-"allowed to raise an IOError if they do not support a given operation.\n"
+"allowed to raise an OSError if they do not support a given operation.\n"
 "\n"
 "Extending IOBase is RawIOBase which deals simply with the reading and\n"
 "writing of raw bytes to a stream. FileIO subclasses RawIOBase to provide\n"
@@ -107,7 +108,7 @@ _io.open
     closefd: bool(accept={int}) = True
     opener: object = None
 
-Open file and return a stream.  Raise IOError upon failure.
+Open file and return a stream.  Raise OSError upon failure.
 
 file is either a text or byte string giving the name (and the path
 if the file isn't in the current working directory) of the file to
@@ -231,7 +232,7 @@ static PyObject *
 _io_open_impl(PyObject *module, PyObject *file, const char *mode,
               int buffering, const char *encoding, const char *errors,
               const char *newline, int closefd, PyObject *opener)
-/*[clinic end generated code: output=aefafc4ce2b46dc0 input=7f81b2a1d3b02344]*/
+/*[clinic end generated code: output=aefafc4ce2b46dc0 input=03da2940c8a65871]*/
 {
     unsigned i;
 
@@ -240,7 +241,7 @@ _io_open_impl(PyObject *module, PyObject *file, const char *mode,
 
     char rawmode[6], *m;
     int line_buffering, is_number;
-    long isatty;
+    long isatty = 0;
 
     PyObject *raw, *modeobj = NULL, *buffer, *wrapper, *result = NULL, *path_or_fd = NULL;
 
@@ -362,6 +363,15 @@ _io_open_impl(PyObject *module, PyObject *file, const char *mode,
         goto error;
     }
 
+    if (binary && buffering == 1) {
+        if (PyErr_WarnEx(PyExc_RuntimeWarning,
+                         "line buffering (buffering=1) isn't supported in "
+                         "binary mode, the default buffer size will be used",
+                         1) < 0) {
+           goto error;
+        }
+    }
+
     /* Create the Raw file stream */
     {
         PyObject *RawIO_class = (PyObject *)&PyFileIO_Type;
@@ -387,7 +397,7 @@ _io_open_impl(PyObject *module, PyObject *file, const char *mode,
         goto error;
 
     /* buffering */
-    {
+    if (buffering < 0) {
         PyObject *res = _PyObject_CallMethodId(raw, &PyId_isatty, NULL);
         if (res == NULL)
             goto error;
@@ -397,7 +407,7 @@ _io_open_impl(PyObject *module, PyObject *file, const char *mode,
             goto error;
     }
 
-    if (buffering == 1 || (buffering < 0 && isatty)) {
+    if (buffering == 1 || isatty) {
         buffering = -1;
         line_buffering = 1;
     }
@@ -656,7 +666,7 @@ PyInit__io(void)
     if (PyModule_AddIntMacro(m, DEFAULT_BUFFER_SIZE) < 0)
         goto fail;
 
-    /* UnsupportedOperation inherits from ValueError and IOError */
+    /* UnsupportedOperation inherits from ValueError and OSError */
     state->unsupported_operation = PyObject_CallFunction(
         (PyObject *)&PyType_Type, "s(OO){}",
         "UnsupportedOperation", PyExc_OSError, PyExc_ValueError);
@@ -740,6 +750,7 @@ PyInit__io(void)
     ADD_INTERNED(getstate)
     ADD_INTERNED(isatty)
     ADD_INTERNED(newlines)
+    ADD_INTERNED(peek)
     ADD_INTERNED(read)
     ADD_INTERNED(read1)
     ADD_INTERNED(readable)
