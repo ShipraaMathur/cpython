@@ -28,6 +28,7 @@ def make_graph(grammar, tokens):
 
     tokens = {v: k for k, v in tokens.items()}
 
+    import pdb; pdb.set_trace()
     for dfaindex, dfa_elem in enumerate(grammar.dfas.items()):
         symbol, (dfa, first_sets) = dfa_elem
         if symbol not in nodes:
@@ -41,8 +42,8 @@ def make_graph(grammar, tokens):
         # next states in dfa
         for x in first_sets:
             if x in tokens:
-                nodes[x*symbol] = (tokens[x], 'red')
-                edges.append((symbol, x*symbol))
+                nodes["{0}_{1}".format(symbol, x)] = (tokens[x], 'red')
+                edges.append((symbol, "{0}_{1}".format(symbol, x)))
             else:
                 edges.append((symbol, x))
 
@@ -53,7 +54,7 @@ def make_graph(grammar, tokens):
     section1 = ""
     for id, node in nodes.items():
         name, color = node
-        section1 += "{" + "id: {0}, label: '{1}', shape: 'box', color:'{2}'".format(id, name, color) + "},"
+        section1 += "{" + "id: '{0}', label: '{1}', shape: 'box', color:'{2}'".format(id, name, color) + "},"
 
     section2 = """
       ]);
@@ -62,7 +63,7 @@ def make_graph(grammar, tokens):
     section3 = ""
     for edge in edges:
         a, b = edge
-        section3 += "{" + "from: {0}, to: {1}".format(a, b) + ", color:{color:'red'}},"
+        section3 += "{" + "from: '{0}', to: '{1}'".format(a, b) + ", color:{color:'red'}},"
 
     footer = """
       ]);
