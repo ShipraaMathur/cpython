@@ -34,7 +34,7 @@ def main():
     grammar.produce_graminit_c(args.graminit_c.write)
     if args.graph:
         from .graph import make_graph
-        make_graph(grammar)
+        make_graph(grammar, p.tokens)
 
 if __name__ == "__main__":
     main()

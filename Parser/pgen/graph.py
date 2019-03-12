@@ -1,4 +1,4 @@
-def make_graph(grammar):
+def make_graph(grammar, tokens):
     header = """
     <!doctype html>
     <html>
@@ -23,36 +23,36 @@ def make_graph(grammar):
       // create an array with nodes
       var nodes = new vis.DataSet([
     """
-    # import pprint
-    #
-    # pprint.pprint(grammar.symbol2label)
-    # pprint.pprint(grammar.dfas)
-    #
-    # pprint.pprint(grammar.labels)
-    #
-    # pprint.pprint(grammar.keywords)
-    # pprint.pprint(grammar.tokens)
 
-    nodes = []
+    nodes = {}
     edges = []
+
+    for label, k in tokens.items():
+        if k != 256:
+            nodes[k] = (label, 'red')
 
     for dfaindex, dfa_elem in enumerate(grammar.dfas.items()):
         symbol, (dfa, first_sets) = dfa_elem
-        nodes.append((symbol, grammar.number2symbol[symbol]))
+        if symbol not in nodes:
+            nodes[symbol] = (grammar.number2symbol[symbol], 'green')
 
-        # iterate over  in dfa
+        for edge in dfa:
+            for a, b in edge:
+                if (a, b) not in edges:
+                    edges.append((a, b))
 
+        # next states in dfa
         for x in first_sets:
             edges.append((symbol, x))
 
     for v, k in grammar.keywords.items():
-        if (k, v) not in nodes:
-            nodes.append((k, v))
+        if k not in nodes:
+            nodes[k] = (v, 'blue')
 
     section1 = ""
-    for node in nodes:
-        id, name = node
-        section1 += "{" + "id: {0}, label: '{1}', shape: 'box', color:'#AAC2FC'".format(id, name) + "},"
+    for id, node in nodes.items():
+        name, color = node
+        section1 += "{" + "id: {0}, label: '{1}', shape: 'box', color:'{2}'".format(id, name, color) + "},"
 
     section2 = """
       ]);
