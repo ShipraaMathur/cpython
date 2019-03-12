@@ -23,13 +23,10 @@ def make_graph(grammar, tokens):
       // create an array with nodes
       var nodes = new vis.DataSet([
     """
-
     nodes = {}
     edges = []
 
-    for label, k in tokens.items():
-        if k != 256:
-            nodes[k] = (label, 'red')
+    tokens = {v: k for k, v in tokens.items()}
 
     for dfaindex, dfa_elem in enumerate(grammar.dfas.items()):
         symbol, (dfa, first_sets) = dfa_elem
@@ -43,7 +40,11 @@ def make_graph(grammar, tokens):
 
         # next states in dfa
         for x in first_sets:
-            edges.append((symbol, x))
+            if x in tokens:
+                nodes[x*symbol] = (tokens[x], 'red')
+                edges.append((symbol, x*symbol))
+            else:
+                edges.append((symbol, x))
 
     for v, k in grammar.keywords.items():
         if k not in nodes:
