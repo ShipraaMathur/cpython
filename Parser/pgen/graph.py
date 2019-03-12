@@ -8,12 +8,9 @@ def make_graph(grammar, tokens):
       <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet" type="text/css" />
       <style type="text/css">
         #mynetwork {
-          width: 1200px;
-          height: 800px;
+          width: 100%;
+          height: 1200px;
           border: 1px solid lightgray;
-        }
-        p {
-          max-width:1200px;
         }
       </style>
     </head>
@@ -23,12 +20,11 @@ def make_graph(grammar, tokens):
       // create an array with nodes
       var nodes = new vis.DataSet([
     """
-    nodes = {}
+    nodes = {1: ('start', 'grey')}
     edges = []
 
     tokens = {v: k for k, v in tokens.items()}
 
-    import pdb; pdb.set_trace()
     for dfaindex, dfa_elem in enumerate(grammar.dfas.items()):
         symbol, (dfa, first_sets) = dfa_elem
         if symbol not in nodes:
@@ -44,8 +40,7 @@ def make_graph(grammar, tokens):
             if x in tokens:
                 nodes["{0}_{1}".format(symbol, x)] = (tokens[x], 'red')
                 edges.append((symbol, "{0}_{1}".format(symbol, x)))
-            else:
-                edges.append((symbol, x))
+            edges.append((symbol, x))
 
     for v, k in grammar.keywords.items():
         if k not in nodes:
@@ -75,7 +70,8 @@ def make_graph(grammar, tokens):
       var options = {
         nodes: {
           shape: 'circle'
-        }
+        },
+        autoResize: true
       };
       var network = new vis.Network(container, data, options);
     </script>
