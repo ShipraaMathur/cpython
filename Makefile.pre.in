@@ -1804,6 +1804,10 @@ funny:
 		-o -name MANIFEST \
 		-o -print
 
+# Profiler for ceval
+ceval-prof:
+	$(CC) $(OPT) $(srcdir)/Python/ceval-profile.c $(LIBRARY_OBJS) -I. -o ceval-prof
+
 # Perform some verification checks on any modified files.
 patchcheck: @DEF_MAKE_RULE@
 	$(RUNSHARED) ./$(BUILDPYTHON) $(srcdir)/Tools/scripts/patchcheck.py
