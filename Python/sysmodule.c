@@ -1858,7 +1858,7 @@ static PyMethodDef sys_methods[] = {
     {"addaudithook", (PyCFunction)sys_addaudithook,
      METH_VARARGS|METH_KEYWORDS, addaudithook_doc},
     {"audit",           sys_audit, METH_VARARGS, audit_doc },
-    {"breakpointhook",  (PyCFunction)(void(*)(void)sys_breakpointhook,
+    {"breakpointhook",  (PyCFunction)(void(*)(void))sys_breakpointhook,
      METH_FASTCALL | METH_KEYWORDS, breakpointhook_doc},
     SYS_CALLSTATS_METHODDEF
     SYS__CLEAR_TYPE_CACHE_METHODDEF
@@ -2392,16 +2392,16 @@ make_flags(void)
     SetFlag(!config->write_bytecode);
     SetFlag(!config->user_site_directory);
     SetFlag(!config->site_import);
-    SetFlag(!config->use_environment);
+    SetFlag(!config->preconfig.use_environment);
     SetFlag(config->verbose);
     /* SetFlag(saw_unbuffered_flag); */
     /* SetFlag(skipfirstline); */
     SetFlag(config->bytes_warning);
     SetFlag(config->quiet);
     SetFlag(config->use_hash_seed == 0 || config->hash_seed != 0);
-    SetFlag(config->isolated);
-    PyStructSequence_SET_ITEM(seq, pos++, PyBool_FromLong(config->dev_mode));
-    SetFlag(config->utf8_mode);
+    SetFlag(config->preconfig.isolated);
+    PyStructSequence_SET_ITEM(seq, pos++, PyBool_FromLong(config->preconfig.dev_mode));
+    SetFlag(config->preconfig.utf8_mode);
 #undef SetFlag
 
     if (PyErr_Occurred()) {
@@ -2959,35 +2959,35 @@ PySys_SetPath(const wchar_t *path)
 }
 
 static PyObject *
-makeargvobject(int argc, wchar_t **argv)
+make_sys_argv(int argc, wchar_t * const * argv)
 {
-    PyObject *av;
-    if (argc <= 0 || argv == NULL) {
-        /* Ensure at least one (empty) argument is seen */
-        static wchar_t *empty_argv[1] = {L""};
-        argv = empty_argv;
-        argc = 1;
+    PyObject *list = PyList_New(argc);
+    if (list == NULL) {
+        return NULL;
     }
-    av = PyList_New(argc);
-    if (av != NULL) {
-        int i;
-        for (i = 0; i < argc; i++) {
-            PyObject *v = PyUnicode_FromWideChar(argv[i], -1);
-            if (v == NULL) {
-                Py_DECREF(av);
-                av = NULL;
-                break;
-            }
-            PyList_SET_ITEM(av, i, v);
+
+    for (Py_ssize_t i = 0; i < argc; i++) {
+        PyObject *v = PyUnicode_FromWideChar(argv[i], -1);
+        if (v == NULL) {
+            Py_DECREF(list);
+            return NULL;
         }
+        PyList_SET_ITEM(list, i, v);
     }
-    return av;
+    return list;
 }
 
 void
 PySys_SetArgvEx(int argc, wchar_t **argv, int updatepath)
 {
-    PyObject *av = makeargvobject(argc, argv);
+    if (argc < 1 || argv == NULL) {
+        /* Ensure at least one (empty) argument is seen */
+        wchar_t* empty_argv[1] = {L""};
+        argv = empty_argv;
+        argc = 1;
+    }
+
+    PyObject *av = make_sys_argv(argc, argv);
     if (av == NULL) {
         Py_FatalError("no mem for sys.argv");
     }
@@ -3000,19 +3000,22 @@ PySys_SetArgvEx(int argc, wchar_t **argv, int updatepath)
     if (updatepath) {
         /* If argv[0] is not '-c' nor '-m', prepend argv[0] to sys.path.
            If argv[0] is a symlink, use the real path. */
-        PyObject *argv0 = _PyPathConfig_ComputeArgv0(argc, argv);
-        if (argv0 == NULL) {
-            Py_FatalError("can't compute path0 from argv");
-        }
-
-        PyObject *sys_path = _PySys_GetObjectId(&PyId_path);
-        if (sys_path != NULL) {
-            if (PyList_Insert(sys_path, 0, argv0) < 0) {
-                Py_DECREF(argv0);
-                Py_FatalError("can't prepend path0 to sys.path");
+        const _PyWstrList argv_list = {.length = argc, .items = argv};
+        PyObject *path0 = NULL;
+        if (_PyPathConfig_ComputeSysPath0(&argv_list, &path0)) {
+            if (path0 == NULL) {
+                Py_FatalError("can't compute path0 from argv");
             }
+
+            PyObject *sys_path = _PySys_GetObjectId(&PyId_path);
+            if (sys_path != NULL) {
+                if (PyList_Insert(sys_path, 0, path0) < 0) {
+                    Py_DECREF(path0);
+                    Py_FatalError("can't prepend path0 to sys.path");
+                }
+            }
+            Py_DECREF(path0);
         }
-        Py_DECREF(argv0);
     }
 }
 

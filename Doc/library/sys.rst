@@ -563,12 +563,16 @@ always available.
 
    * In the UTF-8 mode, the encoding is ``utf-8`` on any platform.
 
-   * On Mac OS X, the encoding is ``'utf-8'``.
+   * On macOS, the encoding is ``'utf-8'``.
 
    * On Unix, the encoding is the locale encoding.
 
    * On Windows, the encoding may be ``'utf-8'`` or ``'mbcs'``, depending
      on user configuration.
+
+   * On Android, the encoding is ``'utf-8'``.
+
+   * On VxWorks, the encoding is ``'utf-8'``.
 
    .. versionchanged:: 3.2
       :func:`getfilesystemencoding` result cannot be ``None`` anymore.
@@ -1065,7 +1069,7 @@ always available.
    Linux            ``'linux'``
    Windows          ``'win32'``
    Windows/Cygwin   ``'cygwin'``
-   Mac OS X         ``'darwin'``
+   macOS            ``'darwin'``
    ================ ===========================
 
    .. versionchanged:: 3.3
