@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <dtrace.h>
+
 #include "Python.h"
 #include "ceval.h"
 #include "unicodeobject.h"
@@ -23,6 +25,14 @@ void handler(int sig) {
   fprintf(stderr, "Error: signal %d:\n", sig);
   backtrace_symbols_fd(array, size, STDERR_FILENO);
   exit(1);
+}
+
+static int
+rec(const dtrace_probedata_t *data, const dtrace_recdesc_t *rec, void *arg)
+{
+    // TODO.. stuff with data
+    printf("Received data!");
+    return 0;
 }
 
 int
@@ -65,7 +75,53 @@ main(int argc, char **argv)
     if (arena == NULL)
         exit(-1);
 
-    printf("Compiled!");
-    PyArena_Free(arena);
+    int err;
+    static dtrace_hdl_t * dtrace_hdl;
+    struct ps_prochandle *process;
+
+    if ((dtrace_hdl = dtrace_open(DTRACE_VERSION, 0, &err)) != 0)
+    {
+        printf("cannot init dtrace");
+        exit(-1);
+    }
+    
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        printf("I'm a child!");
+        // TODO : Start to execute the code object with PyEval..
+        PyArena_Free(arena);
+    } else 
+    {
+        printf("Opened dtrace, attaching to %d", pid);
+
+        process = dtrace_proc_grab(dtrace_hdl, 0, 0);
+        printf("Attached process");
+
+        // I'm going to prison for this...
+        int im_done = 0;
+        do {
+            dtrace_sleep(dtrace_hdl);
+
+            if (im_done) {
+                    if (dtrace_stop(dtrace_hdl) == -1)
+                            exit(-1);    
+            }
+            // Start PyEval... (&co) etc.
+            switch (dtrace_work(dtrace_hdl, stdout, NULL, rec, NULL)) {
+                case DTRACE_WORKSTATUS_DONE:
+                        im_done = 1;     
+                        break;
+                case DTRACE_WORKSTATUS_OKAY:
+                        break;
+                default:
+                        exit(-1);
+            }  
+        } while (!im_done);
+
+        // Sweet Release..
+        dtrace_proc_release(dtrace_hdl, process);
+        wait(0);
+     }
     return 0;
 }

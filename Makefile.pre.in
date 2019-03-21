@@ -1806,7 +1806,7 @@ funny:
 
 # Profiler for ceval
 ceval-prof:
-	$(CC) $(OPT) $(srcdir)/Python/ceval-profile.c $(LIBRARY_OBJS) -IInclude/ -I. -o ceval-prof
+	$(CC) $(OPT) $(srcdir)/Python/ceval-profile.c $(LIBRARY_OBJS) /usr/lib/libdtrace.dylib -IInclude/ -I. -o ceval-prof
 
 # Perform some verification checks on any modified files.
 patchcheck: @DEF_MAKE_RULE@
