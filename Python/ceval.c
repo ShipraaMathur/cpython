@@ -3754,7 +3754,7 @@ _PyEval_EvalCodeWithName(PyObject *_co, PyObject *globals, PyObject *locals,
     fastlocals = f->f_localsplus;
     freevars = f->f_localsplus + co->co_nlocals;
 
-    /* Create a dictionary for keyword parameters (**kwags) */
+    /* Create a dictionary for keyword parameters (**kwargs) */
     if (co->co_flags & CO_VARKEYWORDS) {
         kwdict = PyDict_New();
         if (kwdict == NULL)
