@@ -56,11 +56,9 @@ main(int argc, char **argv)
         printf("Provide script.");
         exit(-1);
     }
-    mod_ty mod;
     PyObject *filename,*co,*bytes,*unicode;
     PyArena *arena;
     PyCompilerFlags flags;
-    char *in = "a = 1";
     flags.cf_flags = 0;
     flags.cf_feature_version = PY_MINOR_VERSION;
 
@@ -68,15 +66,18 @@ main(int argc, char **argv)
 
     char* fn = "test.py";
     char* errors;
-    unicode = PyUnicode_DecodeASCII(in, strlen(in), &errors);
+
+    //unicode = PyUnicode_FromWideChar("print(1)", -1);
+    unicode = PyUnicode_DecodeASCII(input, strlen(input), &errors);
     if (unicode == NULL) {
+        printf("Failed to get input command");
         exit(-1);
     }
     
     bytes = PyUnicode_AsUTF8String(unicode);
     Py_DECREF(unicode);
     char* str = PyBytes_AsString(bytes);
-    co = Py_CompileStringFlags(str, fn, Py_file_input, NULL);
+    co = Py_CompileStringFlags(str, fn, Py_eval_input, NULL);
 
     if (co == NULL) {
         exit(-1);
@@ -97,52 +98,46 @@ main(int argc, char **argv)
 
     dtrace_setopt(dtrace_hdl, "zone", "cpython");
     dtrace_go(dtrace_hdl);
-    int im_done = 0;
-    pid_t pid = fork();
 
-    if (pid == 0) {
-        printf("I'm a child!");
-        // TODO : Start to execute the code object with PyEval..
-        PyObject * globals = PyEval_GetGlobals();
-        PyObject * locals = PyEval_GetLocals();
+    // TODO : Start to execute the code object with PyEval..
+    PyObject * globals = PyEval_GetGlobals();
+    PyObject * locals = PyEval_GetLocals();
 
-        // Construct frames..
-        int ret = PyEval_EvalCode(co, globals, locals);
+    // Construct frames..
+    int ret = PyEval_EvalCode(co, globals, locals);
 
-        PyArena_Free(arena);
-        im_done = 1;
-    } else 
-    {
-        // this doesn't really work at the moment.
-        printf("Opened dtrace, attaching to %d", 0);
+    PyArena_Free(arena);
 
-        process = dtrace_proc_grab(dtrace_hdl, 0, 0);
-        printf("Attached process");
+//        // this doesn't really work at the moment.
+//        printf("Opened dtrace, attaching to %d", 0);
+//
+//        process = dtrace_proc_grab(dtrace_hdl, 0, 0);
+//        printf("Attached process");
+//
+//        // I'm going to prison for this...
+//
+//        do {
+//            dtrace_sleep(dtrace_hdl);
+//
+//            if (im_done) {
+//                    if (dtrace_stop(dtrace_hdl) == -1)
+//                            exit(-1);
+//            }
+//            // Start PyEval... (&co) etc.
+//            switch (dtrace_work(dtrace_hdl, stdout, NULL, rec, NULL)) {
+//                case DTRACE_WORKSTATUS_DONE:
+//                        im_done = 1;
+//                        break;
+//                case DTRACE_WORKSTATUS_OKAY:
+//                        break;
+//                default:
+//                        exit(-1);
+//            }
+//        } while (!im_done);
+//
+//        // Sweet Release..
+//        dtrace_proc_release(dtrace_hdl, process);
+//        wait(0);
 
-        // I'm going to prison for this...
-
-        do {
-            dtrace_sleep(dtrace_hdl);
-
-            if (im_done) {
-                    if (dtrace_stop(dtrace_hdl) == -1)
-                            exit(-1);    
-            }
-            // Start PyEval... (&co) etc.
-            switch (dtrace_work(dtrace_hdl, stdout, NULL, rec, NULL)) {
-                case DTRACE_WORKSTATUS_DONE:
-                        im_done = 1;     
-                        break;
-                case DTRACE_WORKSTATUS_OKAY:
-                        break;
-                default:
-                        exit(-1);
-            }  
-        } while (!im_done);
-
-        // Sweet Release..
-        dtrace_proc_release(dtrace_hdl, process);
-        wait(0);
-     }
     return 0;
 }
