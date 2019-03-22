@@ -6,6 +6,8 @@
 
 #include <dtrace.h>
 
+#include "pyconfig.h"
+
 #include "Python.h"
 #include "ceval.h"
 #include "unicodeobject.h"
@@ -34,6 +36,14 @@ rec(const dtrace_probedata_t *data, const dtrace_recdesc_t *rec, void *arg)
     printf("Received data!");
     return 0;
 }
+
+static int
+fatal(int exitcode, const char *format, const char *message)
+{
+    fprintf(stderr, format, message);
+    exit(exitcode);
+}
+
 
 int
 main(int argc, char **argv)
@@ -78,28 +88,39 @@ main(int argc, char **argv)
     int err;
     static dtrace_hdl_t * dtrace_hdl;
     struct ps_prochandle *process;
-
-    if ((dtrace_hdl = dtrace_open(DTRACE_VERSION, 0, &err)) != 0)
-    {
-        printf("cannot init dtrace");
-        exit(-1);
+    int dtrace_flags = DTRACE_O_NODEV;
+    dtrace_hdl = dtrace_open(DTRACE_VERSION, dtrace_flags, &err);
+    if (dtrace_hdl == NULL){
+        printf("cannot init dtrace %d", err);
+        fatal(1,"ERROR1: opening dtrace: %s\n",dtrace_errmsg(NULL,err));
     }
-    
+
+    dtrace_setopt(dtrace_hdl, "zone", "cpython");
+    dtrace_go(dtrace_hdl);
+    int im_done = 0;
     pid_t pid = fork();
 
     if (pid == 0) {
         printf("I'm a child!");
         // TODO : Start to execute the code object with PyEval..
+        PyObject * globals = PyEval_GetGlobals();
+        PyObject * locals = PyEval_GetLocals();
+
+        // Construct frames..
+        int ret = PyEval_EvalCode(co, globals, locals);
+
         PyArena_Free(arena);
+        im_done = 1;
     } else 
     {
-        printf("Opened dtrace, attaching to %d", pid);
+        // this doesn't really work at the moment.
+        printf("Opened dtrace, attaching to %d", 0);
 
         process = dtrace_proc_grab(dtrace_hdl, 0, 0);
         printf("Attached process");
 
         // I'm going to prison for this...
-        int im_done = 0;
+
         do {
             dtrace_sleep(dtrace_hdl);
 
