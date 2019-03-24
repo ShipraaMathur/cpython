@@ -84,15 +84,15 @@ error:
 static PyObject*
 mainconfig_create_xoptions_dict(const _PyCoreConfig *config)
 {
-    int nxoption = config->nxoption;
-    wchar_t **xoptions = config->xoptions;
+    Py_ssize_t nxoption = config->xoptions.length;
+    wchar_t * const * xoptions = config->xoptions.items;
     PyObject *dict = PyDict_New();
     if (dict == NULL) {
         return NULL;
     }
 
-    for (int i=0; i < nxoption; i++) {
-        wchar_t *option = xoptions[i];
+    for (Py_ssize_t i=0; i < nxoption; i++) {
+        const wchar_t *option = xoptions[i];
         if (mainconfig_add_xoption(dict, option) < 0) {
             Py_DECREF(dict);
             return NULL;
@@ -243,22 +243,18 @@ _PyMainInterpreterConfig_Read(_PyMainInterpreterConfig *main_config,
             } \
         } \
     } while (0)
-#define COPY_WSTRLIST(ATTR, LEN, LIST) \
+#define COPY_WSTRLIST(ATTR, LIST) \
     do { \
         if (ATTR == NULL) { \
-            ATTR = _Py_wstrlist_as_pylist(LEN, LIST); \
+            ATTR = _PyWstrList_AsList(LIST); \
             if (ATTR == NULL) { \
                 return _Py_INIT_NO_MEMORY(); \
             } \
         } \
     } while (0)
 
-    COPY_WSTRLIST(main_config->warnoptions,
-                  config->nwarnoption, config->warnoptions);
-    if (config->argc >= 0) {
-        COPY_WSTRLIST(main_config->argv,
-                      config->argc, config->argv);
-    }
+    COPY_WSTRLIST(main_config->warnoptions, &config->warnoptions);
+    COPY_WSTRLIST(main_config->argv, &config->argv);
 
     if (config->_install_importlib) {
         COPY_WSTR(executable);
@@ -268,7 +264,7 @@ _PyMainInterpreterConfig_Read(_PyMainInterpreterConfig *main_config,
         COPY_WSTR(base_exec_prefix);
 
         COPY_WSTRLIST(main_config->module_search_path,
-                      config->nmodule_search_path, config->module_search_paths);
+                      &config->module_search_paths);
 
         if (config->pycache_prefix != NULL) {
             COPY_WSTR(pycache_prefix);
@@ -287,32 +283,30 @@ _PyMainInterpreterConfig_Read(_PyMainInterpreterConfig *main_config,
 /* --- pymain_init() ---------------------------------------------- */
 
 static _PyInitError
-preconfig_read_write(_PyPreConfig *config, const _PyArgv *args)
+pymain_init_preconfig(_PyPreConfig *config, const _PyArgv *args)
 {
-    _PyPreConfig_GetGlobalConfig(config);
-
     _PyInitError err = _PyPreConfig_ReadFromArgv(config, args);
     if (_Py_INIT_FAILED(err)) {
         return err;
     }
 
-    return _PyPreConfig_Write(config);
+    return _Py_PreInitializeFromPreConfig(config);
 }
 
 
 static _PyInitError
-config_read_write(_PyCoreConfig *config, const _PyArgv *args,
-                  const _PyPreConfig *preconfig)
+pymain_init_coreconfig(_PyCoreConfig *config, const _PyArgv *args,
+                       const _PyPreConfig *preconfig,
+                       PyInterpreterState **interp_p)
 {
-    _PyCoreConfig_GetGlobalConfig(config);
-
     _PyInitError err = _PyCoreConfig_ReadFromArgv(config, args, preconfig);
     if (_Py_INIT_FAILED(err)) {
         return err;
     }
 
     _PyCoreConfig_Write(config);
-    return _Py_INIT_OK();
+
+    return _Py_InitializeCore(interp_p, config);
 }
 
 
@@ -360,24 +354,17 @@ pymain_init(const _PyArgv *args, PyInterpreterState **interp_p)
     _PyCoreConfig local_config = _PyCoreConfig_INIT;
     _PyCoreConfig *config = &local_config;
 
-    err = preconfig_read_write(preconfig, args);
+    err = pymain_init_preconfig(preconfig, args);
     if (_Py_INIT_FAILED(err)) {
         goto done;
     }
 
-    err = config_read_write(config, args, preconfig);
+    err = pymain_init_coreconfig(config, args, preconfig, interp_p);
     if (_Py_INIT_FAILED(err)) {
         goto done;
     }
 
-    PyInterpreterState *interp;
-    err = _Py_InitializeCore(&interp, config);
-    if (_Py_INIT_FAILED(err)) {
-        goto done;
-    }
-    *interp_p = interp;
-
-    err = pymain_init_python_main(interp);
+    err = pymain_init_python_main(*interp_p);
     if (_Py_INIT_FAILED(err)) {
         goto done;
     }
@@ -784,19 +771,20 @@ pymain_run_python(PyInterpreterState *interp, int *exitcode)
         }
     }
     else if (!config->preconfig.isolated) {
-        PyObject *path0 = _PyPathConfig_ComputeArgv0(config->argc,
-                                                     config->argv);
-        if (path0 == NULL) {
-            err = _Py_INIT_NO_MEMORY();
-            goto done;
-        }
+        PyObject *path0 = NULL;
+        if (_PyPathConfig_ComputeSysPath0(&config->argv, &path0)) {
+            if (path0 == NULL) {
+                err = _Py_INIT_NO_MEMORY();
+                goto done;
+            }
 
-        if (pymain_sys_path_add_path0(interp, path0) < 0) {
+            if (pymain_sys_path_add_path0(interp, path0) < 0) {
+                Py_DECREF(path0);
+                err = _Py_INIT_EXIT(1);
+                goto done;
+            }
             Py_DECREF(path0);
-            err = _Py_INIT_EXIT(1);
-            goto done;
         }
-        Py_DECREF(path0);
     }
 
     PyCompilerFlags cf = {.cf_flags = 0, .cf_feature_version = PY_MINOR_VERSION};
@@ -844,18 +832,7 @@ pymain_free(void)
     _PyPathConfig_ClearGlobal();
     _Py_ClearStandardStreamEncoding();
     _Py_ClearArgcArgv();
-#ifdef __INSURE__
-    /* Insure++ is a memory analysis tool that aids in discovering
-     * memory leaks and other memory problems.  On Python exit, the
-     * interned string dictionaries are flagged as being in use at exit
-     * (which it is).  Under normal circumstances, this is fine because
-     * the memory will be automatically reclaimed by the system.  Under
-     * memory debugging, it's a huge source of useless noise, so we
-     * trade off slower shutdown for less distraction in the memory
-     * reports.  -baw
-     */
-    _Py_ReleaseInternedUnicodeStrings();
-#endif /* __INSURE__ */
+    _PyRuntime_Finalize();
 }
 
 
@@ -893,13 +870,13 @@ pymain_main(_PyArgv *args)
     PyInterpreterState *interp;
     err = pymain_init(args, &interp);
     if (_Py_INIT_FAILED(err)) {
-        _Py_ExitInitError(err);
+        goto exit_init_error;
     }
 
     int exitcode = 0;
     err = pymain_run_python(interp, &exitcode);
     if (_Py_INIT_FAILED(err)) {
-        _Py_ExitInitError(err);
+        goto exit_init_error;
     }
 
     if (Py_FinalizeEx() < 0) {
@@ -915,6 +892,10 @@ pymain_main(_PyArgv *args)
     }
 
     return exitcode;
+
+exit_init_error:
+    pymain_free();
+    _Py_ExitInitError(err);
 }
 
 

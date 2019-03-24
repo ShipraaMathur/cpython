@@ -64,59 +64,56 @@ _Py_SetFileSystemEncoding(const char *encoding, const char *errors)
 /* --- _PyArgv ---------------------------------------------------- */
 
 _PyInitError
-_PyArgv_Decode(const _PyArgv *args, wchar_t*** argv_p)
+_PyArgv_AsWstrList(const _PyArgv *args, _PyWstrList *list)
 {
-    wchar_t** argv;
+    _PyWstrList wargv = _PyWstrList_INIT;
     if (args->use_bytes_argv) {
-        /* +1 for a the NULL terminator */
-        size_t size = sizeof(wchar_t*) * (args->argc + 1);
-        argv = (wchar_t **)PyMem_RawMalloc(size);
-        if (argv == NULL) {
+        size_t size = sizeof(wchar_t*) * args->argc;
+        wargv.items = (wchar_t **)PyMem_RawMalloc(size);
+        if (wargv.items == NULL) {
             return _Py_INIT_NO_MEMORY();
         }
 
-        for (int i = 0; i < args->argc; i++) {
+        for (Py_ssize_t i = 0; i < args->argc; i++) {
             size_t len;
             wchar_t *arg = Py_DecodeLocale(args->bytes_argv[i], &len);
             if (arg == NULL) {
-                _Py_wstrlist_clear(i, argv);
+                _PyWstrList_Clear(&wargv);
                 return DECODE_LOCALE_ERR("command line arguments",
                                          (Py_ssize_t)len);
             }
-            argv[i] = arg;
+            wargv.items[i] = arg;
+            wargv.length++;
         }
-        argv[args->argc] = NULL;
+
+        _PyWstrList_Clear(list);
+        *list = wargv;
     }
     else {
-        argv = args->wchar_argv;
+        wargv.length = args->argc;
+        wargv.items = args->wchar_argv;
+        if (_PyWstrList_Copy(list, &wargv) < 0) {
+            return _Py_INIT_NO_MEMORY();
+        }
     }
-    *argv_p = argv;
     return _Py_INIT_OK();
 }
 
 
 /* --- _PyPreCmdline ------------------------------------------------- */
 
-typedef struct {
-    const _PyArgv *args;
-    int argc;
-    wchar_t **argv;
-    int nxoption;           /* Number of -X options */
-    wchar_t **xoptions;     /* -X options */
-} _PyPreCmdline;
-
-
-static void
-precmdline_clear(_PyPreCmdline *cmdline)
+void
+_PyPreCmdline_Clear(_PyPreCmdline *cmdline)
 {
-    if (cmdline->args->use_bytes_argv && cmdline->argv != NULL) {
-        _Py_wstrlist_clear(cmdline->args->argc, cmdline->argv);
-    }
-    cmdline->argv = NULL;
+    _PyWstrList_Clear(&cmdline->argv);
+    _PyWstrList_Clear(&cmdline->xoptions);
+}
 
-    _Py_wstrlist_clear(cmdline->nxoption, cmdline->xoptions);
-    cmdline->nxoption = 0;
-    cmdline->xoptions = NULL;
+
+_PyInitError
+_PyPreCmdline_Init(_PyPreCmdline *cmdline, const _PyArgv *args)
+{
+    return _PyArgv_AsWstrList(args, &cmdline->argv);
 }
 
 
@@ -267,10 +264,10 @@ _Py_get_env_flag(_PyPreConfig *config, int *flag, const char *name)
 
 
 const wchar_t*
-_Py_get_xoption(int nxoption, wchar_t * const *xoptions, const wchar_t *name)
+_Py_get_xoption(const _PyWstrList *xoptions, const wchar_t *name)
 {
-    for (int i=0; i < nxoption; i++) {
-        const wchar_t *option = xoptions[i];
+    for (Py_ssize_t i=0; i < xoptions->length; i++) {
+        const wchar_t *option = xoptions->items[i];
         size_t len;
         wchar_t *sep = wcschr(option, L'=');
         if (sep != NULL) {
@@ -292,7 +289,7 @@ preconfig_init_utf8_mode(_PyPreConfig *config, const _PyPreCmdline *cmdline)
 {
     const wchar_t *xopt;
     if (cmdline) {
-        xopt = _Py_get_xoption(cmdline->nxoption, cmdline->xoptions, L"utf8");
+        xopt = _Py_get_xoption(&cmdline->xoptions, L"utf8");
     }
     else {
         xopt = NULL;
@@ -435,7 +432,7 @@ preconfig_read(_PyPreConfig *config, const _PyPreCmdline *cmdline)
     }
 
     /* dev_mode */
-    if ((cmdline && _Py_get_xoption(cmdline->nxoption, cmdline->xoptions, L"dev"))
+    if ((cmdline && _Py_get_xoption(&cmdline->xoptions, L"dev"))
         || _PyPreConfig_GetEnv(config, "PYTHONDEVMODE"))
     {
         config->dev_mode = 1;
@@ -518,8 +515,24 @@ _PyPreConfig_Read(_PyPreConfig *config)
     err = preconfig_read(config, NULL);
 
     setlocale(LC_CTYPE, old_loc);
+    PyMem_RawFree(old_loc);
 
     return err;
+}
+
+
+void
+_PyPreCmdline_SetPreConfig(const _PyPreCmdline *cmdline, _PyPreConfig *config)
+{
+#define COPY_ATTR(ATTR) \
+    if (cmdline->ATTR != -1) { \
+        config->ATTR = cmdline->ATTR; \
+    }
+
+    COPY_ATTR(use_environment);
+    COPY_ATTR(isolated);
+
+#undef COPY_ATTR
 }
 
 
@@ -570,16 +583,18 @@ fail:
 
 
 /* Parse the command line arguments */
-static _PyInitError
-preconfig_parse_cmdline(_PyPreConfig *config, _PyPreCmdline *cmdline)
+_PyInitError
+_PyPreCmdline_Read(_PyPreCmdline *cmdline)
 {
+    _PyWstrList *argv = &cmdline->argv;
+
     _PyOS_ResetGetOpt();
     /* Don't log parsing errors into stderr here: _PyCoreConfig_ReadFromArgv()
        is responsible for that */
     _PyOS_opterr = 0;
     do {
         int longindex = -1;
-        int c = _PyOS_GetOpt(cmdline->args->argc, cmdline->argv, &longindex);
+        int c = _PyOS_GetOpt(argv->length, argv->items, &longindex);
 
         if (c == EOF || c == 'c' || c == 'm') {
             break;
@@ -587,21 +602,17 @@ preconfig_parse_cmdline(_PyPreConfig *config, _PyPreCmdline *cmdline)
 
         switch (c) {
         case 'E':
-            config->use_environment = 0;
+            cmdline->use_environment = 0;
             break;
 
         case 'I':
-            config->isolated++;
+            cmdline->isolated = 1;
             break;
 
         case 'X':
         {
-            _PyInitError err;
-            err = _Py_wstrlist_append(&cmdline->nxoption,
-                                      &cmdline->xoptions,
-                                      _PyOS_optarg);
-            if (_Py_INIT_FAILED(err)) {
-                return err;
+            if (_PyWstrList_Append(&cmdline->xoptions, _PyOS_optarg) < 0) {
+                return _Py_INIT_NO_MEMORY();
             }
             break;
         }
@@ -622,19 +633,19 @@ preconfig_from_argv(_PyPreConfig *config, const _PyArgv *args)
 {
     _PyInitError err;
 
-    _PyPreCmdline cmdline;
-    memset(&cmdline, 0, sizeof(cmdline));
-    cmdline.args = args;
+    _PyPreCmdline cmdline = _PyPreCmdline_INIT;
 
-    err = _PyArgv_Decode(cmdline.args, &cmdline.argv);
+    err = _PyPreCmdline_Init(&cmdline, args);
     if (_Py_INIT_FAILED(err)) {
         goto done;
     }
 
-    err = preconfig_parse_cmdline(config, &cmdline);
+    err = _PyPreCmdline_Read(&cmdline);
     if (_Py_INIT_FAILED(err)) {
         goto done;
     }
+
+    _PyPreCmdline_SetPreConfig(&cmdline, config);
 
     err = preconfig_read(config, &cmdline);
     if (_Py_INIT_FAILED(err)) {
@@ -643,7 +654,7 @@ preconfig_from_argv(_PyPreConfig *config, const _PyArgv *args)
     err = _Py_INIT_OK();
 
 done:
-    precmdline_clear(&cmdline);
+    _PyPreCmdline_Clear(&cmdline);
     return err;
 }
 
@@ -679,6 +690,8 @@ _PyPreConfig_ReadFromArgv(_PyPreConfig *config, const _PyArgv *args)
     if (_Py_INIT_FAILED(err)) {
         goto done;
     }
+
+    _PyPreConfig_GetGlobalConfig(config);
 
     if (_PyPreConfig_Copy(&save_config, config) < 0) {
         err = _Py_INIT_NO_MEMORY();
@@ -767,6 +780,7 @@ _PyPreConfig_ReadFromArgv(_PyPreConfig *config, const _PyArgv *args)
 done:
     if (init_ctype_locale != NULL) {
         setlocale(LC_CTYPE, init_ctype_locale);
+        PyMem_RawFree(init_ctype_locale);
     }
     _PyPreConfig_Clear(&save_config);
     Py_UTF8Mode = init_utf8_mode ;
@@ -847,6 +861,15 @@ _PyPreConfig_Write(_PyPreConfig *config)
 
     /* Set LC_CTYPE to the user preferred locale */
     _Py_SetLocaleFromEnv(LC_CTYPE);
+
+    /* Write the new pre-configuration into _PyRuntime */
+    PyMemAllocatorEx old_alloc;
+    _PyMem_SetDefaultAllocator(PYMEM_DOMAIN_RAW, &old_alloc);
+    int res = _PyPreConfig_Copy(&_PyRuntime.preconfig, config);
+    PyMem_SetAllocator(PYMEM_DOMAIN_RAW, &old_alloc);
+    if (res < 0) {
+        return _Py_INIT_NO_MEMORY();
+    }
 
     return _Py_INIT_OK();
 }
