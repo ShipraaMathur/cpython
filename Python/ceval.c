@@ -1488,9 +1488,11 @@ main_loop:
         }
 
         case TARGET(LOAD_SIZE): {
-            PyObject *value = PEEK(oparg);
-            PyObject *size = PyLong_FromSsize_t(Py_SIZE(value));
-            PUSH(size);
+            PyObject *val = POP();
+            PyObject *len = PyLong_FromSsize_t(Py_SIZE(val));
+            Py_DECREF(val);
+            Py_INCREF(len);
+            PUSH(len);
             DISPATCH();
         }
 
@@ -2504,11 +2506,12 @@ main_loop:
         }
 
         case TARGET(MAKE_LIST): {
-            Py_ssize_t len = Py_SIZE(TOP());
-            PyObject *list =  PyList_New(len);
+            PyObject *len = POP();
+            Py_ssize_t size = PyLong_AsSsize_t(len);
+            PyObject *list = _PyList_NewPrealloc(size);
+            Py_DECREF(len);
             if (list == NULL)
                 goto error;
-
             PUSH(list);
             DISPATCH();
         }

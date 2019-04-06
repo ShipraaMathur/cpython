@@ -1001,7 +1001,10 @@ stack_effect(int opcode, int oparg, int jump)
             return 1;
         case LOAD_NAME:
             return 1;
+        case LOAD_SIZE:
+            return 1;
         case BUILD_TUPLE:
+        case MAKE_LIST:
         case BUILD_LIST:
         case BUILD_SET:
         case BUILD_STRING:
@@ -4365,14 +4368,15 @@ compiler_comprehension(struct compiler *c, expr_ty e, int type,
         goto error_in_scope;
     }
 
-    if (type == COMP_LISTCOMP) {
-        if (outermost->iter->kind == Name_kind){ // If the iterator is a name, not a constant or generator expression...
-            ADDOP_NAME(c, LOAD_NAME, outermost->iter->v.Name.id, names); // Get the name..
-            //ADDOP_I(c, LOAD_SIZE, 0); // Get the size of the iterator
-            ADDOP_I(c, MAKE_LIST, 0); // Make a list of that size
+    if (type == COMP_LISTCOMP){
+        if (outermost->iter->kind == Name_kind){
+            ADDOP_LOAD_CONST(c, outermost->iter->v.Name.id);
+            ADDOP_I(c, LOAD_SIZE, 0);
+            ADDOP_I(c, MAKE_LIST, 0);
         } else {
             ADDOP_I(c, BUILD_LIST, 0);
         }
+        
     } else if (type != COMP_GENEXP) {
         int op;
         switch (type) {
@@ -4384,10 +4388,9 @@ compiler_comprehension(struct compiler *c, expr_ty e, int type,
                 break;
             default:
                 PyErr_Format(PyExc_SystemError,
-                             "unknown comprehension type %d", type);
+                            "unknown comprehension type %d", type);
                 goto error_in_scope;
         }
-
         ADDOP_I(c, op, 0);
     }
 
