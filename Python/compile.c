@@ -4371,7 +4371,6 @@ compiler_comprehension(struct compiler *c, expr_ty e, int type,
     if (type == COMP_LISTCOMP){
         if (outermost->iter->kind == Name_kind){
             ADDOP_LOAD_CONST(c, outermost->iter->v.Name.id);
-            ADDOP_I(c, LOAD_SIZE, 0);
             ADDOP_I(c, MAKE_LIST, 0);
         } else {
             ADDOP_I(c, BUILD_LIST, 0);

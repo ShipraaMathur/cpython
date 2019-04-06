@@ -2505,11 +2505,16 @@ main_loop:
             DISPATCH();
         }
 
-        case TARGET(MAKE_LIST): {
-            PyObject *len = POP();
-            Py_ssize_t size = PyLong_AsSsize_t(len);
-            PyObject *list = _PyList_NewPrealloc(size);
-            Py_DECREF(len);
+        case TARGET(MAKE_LIST): { // Build a sized list 
+            PyObject *list, *target = POP();
+            if (PyList_Check(target))
+                list = _PyList_NewPrealloc(PyList_Size(target));
+            else
+            {
+                list = _PyList_NewPrealloc(Py_SIZE(target));
+            }
+            
+            Py_DECREF(target);
             if (list == NULL)
                 goto error;
             PUSH(list);
