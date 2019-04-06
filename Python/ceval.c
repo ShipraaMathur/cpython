@@ -2506,14 +2506,14 @@ main_loop:
         }
 
         case TARGET(MAKE_LIST): { // Build a sized list 
-            PyObject *list, *target = POP();
+            PyObject *list, *target = GETITEM(consts, oparg);
+            Py_INCREF(target);
             if (PyList_Check(target))
                 list = _PyList_NewPrealloc(PyList_Size(target));
             else
             {
                 list = _PyList_NewPrealloc(Py_SIZE(target));
             }
-            
             Py_DECREF(target);
             if (list == NULL)
                 goto error;
