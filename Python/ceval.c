@@ -1490,7 +1490,7 @@ main_loop:
         case TARGET(LOAD_SIZE): {
             PyObject *value = PEEK(oparg);
             PyObject *size = PyLong_FromSsize_t(Py_SIZE(value));
-            SET_TOP(size);
+            PUSH(size);
             DISPATCH();
         }
 
@@ -2504,14 +2504,11 @@ main_loop:
         }
 
         case TARGET(MAKE_LIST): {
-            PyObject *target = PEEK(oparg);
-            PyObject *list =  PyList_New(Py_SIZE(target));
+            Py_ssize_t len = Py_SIZE(TOP());
+            PyObject *list =  PyList_New(len);
             if (list == NULL)
                 goto error;
-            while (--oparg >= 0) {
-                PyObject *item = POP();
-                PyList_SET_ITEM(list, oparg, item);
-            }
+
             PUSH(list);
             DISPATCH();
         }

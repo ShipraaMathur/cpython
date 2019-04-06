@@ -4366,9 +4366,10 @@ compiler_comprehension(struct compiler *c, expr_ty e, int type,
     }
 
     if (type == COMP_LISTCOMP) {
-        if (outermost->iter->kind == Name_kind){
-            ADDOP_NAME(c, LOAD_NAME, outermost->iter->v.Name.id, names);
-            ADDOP_I(c, MAKE_LIST, 0);
+        if (outermost->iter->kind == Name_kind){ // If the iterator is a name, not a constant or generator expression...
+            ADDOP_NAME(c, LOAD_NAME, outermost->iter->v.Name.id, names); // Get the name..
+            //ADDOP_I(c, LOAD_SIZE, 0); // Get the size of the iterator
+            ADDOP_I(c, MAKE_LIST, 0); // Make a list of that size
         } else {
             ADDOP_I(c, BUILD_LIST, 0);
         }
