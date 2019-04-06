@@ -4183,6 +4183,7 @@ compiler_sync_comprehension_generator(struct compiler *c,
 
     if (gen_index == 0) {
         /* Receive outermost iter as an implicit argument */
+        //ADDOP(c, NOOP);
         c->u->u_argcount = 1;
         ADDOP_I(c, LOAD_FAST, 0);
     }
@@ -4364,22 +4365,26 @@ compiler_comprehension(struct compiler *c, expr_ty e, int type,
         goto error_in_scope;
     }
 
-    if (type != COMP_GENEXP) {
+    if (type == COMP_LISTCOMP) {
+        if (outermost->iter->kind == Name_kind){
+            ADDOP_NAME(c, LOAD_NAME, outermost->iter->v.Name.id, names);
+            ADDOP_I(c, MAKE_LIST, 0);
+        } else {
+            ADDOP_I(c, BUILD_LIST, 0);
+        }
+    } else if (type != COMP_GENEXP) {
         int op;
         switch (type) {
-        case COMP_LISTCOMP:
-            op = BUILD_LIST;
-            break;
-        case COMP_SETCOMP:
-            op = BUILD_SET;
-            break;
-        case COMP_DICTCOMP:
-            op = BUILD_MAP;
-            break;
-        default:
-            PyErr_Format(PyExc_SystemError,
-                         "unknown comprehension type %d", type);
-            goto error_in_scope;
+            case COMP_SETCOMP:
+                op = BUILD_SET;
+                break;
+            case COMP_DICTCOMP:
+                op = BUILD_MAP;
+                break;
+            default:
+                PyErr_Format(PyExc_SystemError,
+                             "unknown comprehension type %d", type);
+                goto error_in_scope;
         }
 
         ADDOP_I(c, op, 0);

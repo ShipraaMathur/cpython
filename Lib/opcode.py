@@ -158,6 +158,9 @@ jabs_op('POP_JUMP_IF_TRUE', 115)     # ""
 
 name_op('LOAD_GLOBAL', 116)     # Index in name list
 
+def_op('LOAD_SIZE', 117)
+def_op('MAKE_LIST', 118)
+
 jrel_op('SETUP_FINALLY', 122)   # Distance to target address
 
 def_op('LOAD_FAST', 124)        # Local variable number
@@ -212,5 +215,7 @@ name_op('LOAD_METHOD', 160)
 def_op('CALL_METHOD', 161)
 jrel_op('CALL_FINALLY', 162)
 def_op('POP_FINALLY', 163)
+
+
 
 del def_op, name_op, jrel_op, jabs_op
