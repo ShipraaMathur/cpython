@@ -2505,15 +2505,10 @@ main_loop:
         }
 
         case TARGET(BUILD_PREALLOC_LIST): { // Build a sized list 
-            PyObject *list, *target = POP();
-            Py_ssize_t size;
+            PyObject *list, *target = GETLOCAL(oparg);
             Py_INCREF(target);
-            if (PyNumber_Check(target)) {
-                size = PyNumber_AsSsize_t(target, NULL);
-            } else
-            {
-                size = 0;
-            }
+            Py_ssize_t size = PyObject_LengthHint(target, 2);
+            
             //printf("Build prealloc'ed %d %s %s", size, target->ob_type->tp_name, PyUnicode_AsASCIIString( PyObject_Repr(target)));
             list = _PyList_NewPrealloc(size);
             Py_DECREF(target);

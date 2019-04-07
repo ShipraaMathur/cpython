@@ -4368,16 +4368,12 @@ compiler_comprehension(struct compiler *c, expr_ty e, int type,
         goto error_in_scope;
     }
 
-    if (type == COMP_LISTCOMP){
-        if (outermost->iter->kind == Name_kind){
-            ADDOP_I(c, BUILD_PREALLOC_LIST, 0);
-        } else {
-            ADDOP_I(c, BUILD_LIST, 0);
-        }
-        
-    } else if (type != COMP_GENEXP) {
+    if (type != COMP_GENEXP) {
         int op;
         switch (type) {
+            case COMP_LISTCOMP:
+                op = BUILD_PREALLOC_LIST;
+                break;
             case COMP_SETCOMP:
                 op = BUILD_SET;
                 break;
