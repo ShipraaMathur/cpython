@@ -2509,7 +2509,6 @@ main_loop:
             Py_INCREF(target);
             Py_ssize_t size = PyObject_LengthHint(target, 2);
             
-            //printf("Build prealloc'ed %d %s %s", size, target->ob_type->tp_name, PyUnicode_AsASCIIString( PyObject_Repr(target)));
             list = _PyList_NewPrealloc(size);
             Py_DECREF(target);
             if (list == NULL)

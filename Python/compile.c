@@ -4386,7 +4386,7 @@ compiler_comprehension(struct compiler *c, expr_ty e, int type,
         }
         ADDOP_I(c, op, 0);
     }
-
+    
     if (!compiler_comprehension_generator(c, generators, 0, elt,
                                           val, type))
         goto error_in_scope;
