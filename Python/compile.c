@@ -4186,8 +4186,7 @@ compiler_sync_comprehension_generator(struct compiler *c,
 
     if (gen_index == 0) {
         /* Receive outermost iter as an implicit argument */
-        //ADDOP(c, NOOP);
-        c->u->u_argcount = 2;
+        c->u->u_argcount = 1;
         ADDOP_I(c, LOAD_FAST, 0);
     }
     else {
