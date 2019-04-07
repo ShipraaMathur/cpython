@@ -1001,10 +1001,10 @@ stack_effect(int opcode, int oparg, int jump)
             return 1;
         case LOAD_NAME:
             return 1;
-        case LOAD_SIZE:
-            return 1;
+        case GET_SIZE:
+            return 0;
         case BUILD_TUPLE:
-        case MAKE_LIST:
+        case BUILD_PREALLOC_LIST:
         case BUILD_LIST:
         case BUILD_SET:
         case BUILD_STRING:
@@ -4187,7 +4187,7 @@ compiler_sync_comprehension_generator(struct compiler *c,
     if (gen_index == 0) {
         /* Receive outermost iter as an implicit argument */
         //ADDOP(c, NOOP);
-        c->u->u_argcount = 1;
+        c->u->u_argcount = 2;
         ADDOP_I(c, LOAD_FAST, 0);
     }
     else {
@@ -4370,7 +4370,7 @@ compiler_comprehension(struct compiler *c, expr_ty e, int type,
 
     if (type == COMP_LISTCOMP){
         if (outermost->iter->kind == Name_kind){
-            compiler_addop_i(c, MAKE_LIST, compiler_add_const(c, outermost->iter->v.Name.id));
+            ADDOP_I(c, BUILD_PREALLOC_LIST, 0);
         } else {
             ADDOP_I(c, BUILD_LIST, 0);
         }
@@ -4417,11 +4417,11 @@ compiler_comprehension(struct compiler *c, expr_ty e, int type,
     if (outermost->is_async) {
         ADDOP(c, GET_AITER);
     } else {
-        ADDOP(c, GET_ITER);
+        ADDOP(c, GET_ITER);  
     }
-
+    
     ADDOP_I(c, CALL_FUNCTION, 1);
-
+    
     if (is_async_generator && type != COMP_GENEXP) {
         ADDOP(c, GET_AWAITABLE);
         ADDOP_LOAD_CONST(c, Py_None);

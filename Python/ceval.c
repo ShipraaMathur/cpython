@@ -1487,12 +1487,11 @@ main_loop:
             DISPATCH();
         }
 
-        case TARGET(LOAD_SIZE): {
-            PyObject *val = POP();
+        case TARGET(GET_SIZE): {
+            PyObject *val = TOP();
             PyObject *len = PyLong_FromSsize_t(Py_SIZE(val));
             Py_DECREF(val);
-            Py_INCREF(len);
-            PUSH(len);
+            SET_TOP(len);
             DISPATCH();
         }
 
@@ -2505,18 +2504,22 @@ main_loop:
             DISPATCH();
         }
 
-        case TARGET(MAKE_LIST): { // Build a sized list 
-            PyObject *list, *target = GETITEM(consts, oparg);
+        case TARGET(BUILD_PREALLOC_LIST): { // Build a sized list 
+            PyObject *list, *target = POP();
+            Py_ssize_t size;
             Py_INCREF(target);
-            if (PyList_Check(target))
-                list = _PyList_NewPrealloc(PyList_Size(target));
-            else
+            if (PyNumber_Check(target)) {
+                size = PyNumber_AsSsize_t(target, NULL);
+            } else
             {
-                list = _PyList_NewPrealloc(Py_SIZE(target));
+                size = 0;
             }
+            //printf("Build prealloc'ed %d %s %s", size, target->ob_type->tp_name, PyUnicode_AsASCIIString( PyObject_Repr(target)));
+            list = _PyList_NewPrealloc(size);
             Py_DECREF(target);
             if (list == NULL)
                 goto error;
+            
             PUSH(list);
             DISPATCH();
         }

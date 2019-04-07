@@ -109,7 +109,7 @@ def_op('PRINT_EXPR', 70)
 def_op('LOAD_BUILD_CLASS', 71)
 def_op('YIELD_FROM', 72)
 def_op('GET_AWAITABLE', 73)
-
+def_op('GET_SIZE', 74)
 def_op('INPLACE_LSHIFT', 75)
 def_op('INPLACE_RSHIFT', 76)
 def_op('INPLACE_AND', 77)
@@ -158,8 +158,7 @@ jabs_op('POP_JUMP_IF_TRUE', 115)     # ""
 
 name_op('LOAD_GLOBAL', 116)     # Index in name list
 
-def_op('LOAD_SIZE', 117)
-name_op('MAKE_LIST', 118)
+def_op('BUILD_PREALLOC_LIST', 118)
 
 jrel_op('SETUP_FINALLY', 122)   # Distance to target address
 

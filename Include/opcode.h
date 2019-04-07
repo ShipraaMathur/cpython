@@ -53,6 +53,7 @@ extern "C" {
 #define LOAD_BUILD_CLASS         71
 #define YIELD_FROM               72
 #define GET_AWAITABLE            73
+#define GET_SIZE                 74
 #define INPLACE_LSHIFT           75
 #define INPLACE_RSHIFT           76
 #define INPLACE_AND              77
@@ -94,8 +95,7 @@ extern "C" {
 #define POP_JUMP_IF_FALSE       114
 #define POP_JUMP_IF_TRUE        115
 #define LOAD_GLOBAL             116
-#define LOAD_SIZE               117
-#define MAKE_LIST               118
+#define BUILD_PREALLOC_LIST     118
 #define SETUP_FINALLY           122
 #define LOAD_FAST               124
 #define STORE_FAST              125
