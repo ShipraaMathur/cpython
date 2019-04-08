@@ -2515,6 +2515,7 @@ main_loop:
                 goto error;
             
             PUSH(list);
+            PREDICTED(LOAD_FAST);
             DISPATCH();
         }
 
