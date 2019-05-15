@@ -47,7 +47,6 @@ _PyRuntimeState_Init_impl(_PyRuntimeState *runtime)
 {
     memset(runtime, 0, sizeof(*runtime));
 
-    _PyGC_Initialize(&runtime->gc);
     _PyEval_Initialize(&runtime->ceval);
     runtime->preconfig = _PyPreConfig_INIT;
 
@@ -782,6 +781,13 @@ PyThreadState_Clear(PyThreadState *tstate)
     Py_CLEAR(tstate->async_gen_finalizer);
 
     Py_CLEAR(tstate->context);
+
+    if (tstate->on_delete != NULL) {
+        // This will unblock any joining threads.
+        tstate->on_delete(tstate->on_delete_data);
+        tstate->on_delete = NULL;
+        tstate->on_delete_data = NULL;
+    }
 }
 
 
@@ -805,6 +811,8 @@ tstate_delete_common(_PyRuntimeState *runtime, PyThreadState *tstate)
         tstate->next->prev = tstate->prev;
     HEAD_UNLOCK(runtime);
     if (tstate->on_delete != NULL) {
+        // This will unblock any joining threads.
+        // We also do this in PyThreadState_Clear(), but do it here to be sure.
         tstate->on_delete(tstate->on_delete_data);
     }
     PyMem_RawFree(tstate);

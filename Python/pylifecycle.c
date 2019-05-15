@@ -4,9 +4,8 @@
 
 #include "Python-ast.h"
 #undef Yield   /* undefine macro conflicting with <winbase.h> */
-#include "pycore_ceval.h"
-#include "pycore_context.h"
 #include "pycore_coreconfig.h"
+#include "pycore_context.h"
 #include "pycore_fileutils.h"
 #include "pycore_hamt.h"
 #include "pycore_pathconfig.h"
@@ -150,13 +149,12 @@ init_importlib(PyInterpreterState *interp, PyObject *sysmod)
     PyObject *importlib;
     PyObject *impmod;
     PyObject *value;
-    int verbose = interp->core_config.verbose;
 
     /* Import _importlib through its frozen version, _frozen_importlib. */
     if (PyImport_ImportFrozenModule("_frozen_importlib") <= 0) {
         return _Py_INIT_ERR("can't import _frozen_importlib");
     }
-    else if (verbose) {
+    else if (Py_VerboseFlag) {
         PySys_FormatStderr("import _frozen_importlib # frozen\n");
     }
     importlib = PyImport_AddModule("_frozen_importlib");
@@ -176,7 +174,7 @@ init_importlib(PyInterpreterState *interp, PyObject *sysmod)
     if (impmod == NULL) {
         return _Py_INIT_ERR("can't import _imp");
     }
-    else if (verbose) {
+    else if (Py_VerboseFlag) {
         PySys_FormatStderr("import _imp # builtin\n");
     }
     if (_PyImport_SetModuleString("_imp", impmod) < 0) {
@@ -206,7 +204,7 @@ init_importlib_external(PyInterpreterState *interp)
         return _Py_INIT_ERR("external importer setup failed");
     }
     Py_DECREF(value);
-    return _PyImportZip_Init(interp);
+    return _PyImportZip_Init();
 }
 
 /* Helper functions to better handle the legacy C locale
@@ -513,6 +511,8 @@ pycore_create_interpreter(_PyRuntimeState *runtime,
     }
     *interp_p = interp;
 
+    _PyGC_Initialize(&interp->gc);
+
     _PyInitError err = _PyCoreConfig_Copy(&interp->core_config, core_config);
     if (_Py_INIT_FAILED(err)) {
         return err;
@@ -529,7 +529,7 @@ pycore_create_interpreter(_PyRuntimeState *runtime,
        another running thread (see issue #9901).
        Instead we destroy the previously created GIL here, which ensures
        that we can call Py_Initialize / Py_FinalizeEx multiple times. */
-    _PyEval_FiniThreads(&runtime->ceval);
+    _PyEval_FiniThreads();
 
     /* Auto-thread-state API */
     _PyGILState_Init(runtime, interp, tstate);
@@ -1133,15 +1133,15 @@ Py_FinalizeEx(void)
         return status;
     }
 
+    /* Get current thread state and interpreter pointer */
+    PyThreadState *tstate = _PyThreadState_GET();
+    PyInterpreterState *interp = tstate->interp;
+
     // Wrap up existing "threading"-module-created, non-daemon threads.
     wait_for_thread_shutdown();
 
     // Make any remaining pending calls.
-    _Py_FinishPendingCalls(runtime);
-
-    /* Get current thread state and interpreter pointer */
-    PyThreadState *tstate = _PyRuntimeState_GetThreadState(runtime);
-    PyInterpreterState *interp = tstate->interp;
+    _Py_FinishPendingCalls();
 
     /* The interpreter is still entirely intact at this point, and the
      * exit funcs may be relying on that.  In particular, if some thread
@@ -1289,7 +1289,7 @@ Py_FinalizeEx(void)
     PyFloat_Fini();
     PyDict_Fini();
     PySlice_Fini();
-    _PyGC_Fini(runtime);
+    _PyGC_Fini(interp);
     _PyWarnings_Fini(interp);
     _Py_HashRandomization_Fini();
     _PyArg_Fini();
@@ -1381,6 +1381,8 @@ new_interpreter(PyThreadState **tstate_p)
         *tstate_p = NULL;
         return _Py_INIT_OK();
     }
+
+    _PyGC_Initialize(&interp->gc);
 
     PyThreadState *tstate = PyThreadState_New(interp);
     if (tstate == NULL) {
@@ -1560,6 +1562,9 @@ Py_EndInterpreter(PyThreadState *tstate)
 
     PyImport_Cleanup();
     PyInterpreterState_Clear(interp);
+
+    _PyGC_Fini(interp);
+
     PyThreadState_Swap(NULL);
     PyInterpreterState_Delete(interp);
 }
@@ -2189,6 +2194,9 @@ wait_for_thread_shutdown(void)
         Py_DECREF(result);
     }
     Py_DECREF(threading);
+
+    // All threading module threads are marked as "done" later
+    // in PyThreadState_Clear().
 }
 
 #define NEXITFUNCS 32
