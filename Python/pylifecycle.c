@@ -4,6 +4,7 @@
 
 #include "Python-ast.h"
 #undef Yield   /* undefine macro conflicting with <winbase.h> */
+#include "pycore_ceval.h"
 #include "pycore_coreconfig.h"
 #include "pycore_context.h"
 #include "pycore_fileutils.h"
@@ -204,7 +205,7 @@ init_importlib_external(PyInterpreterState *interp)
         return _Py_INIT_ERR("external importer setup failed");
     }
     Py_DECREF(value);
-    return _PyImportZip_Init();
+    return _PyImportZip_Init(interp);
 }
 
 /* Helper functions to better handle the legacy C locale
@@ -529,7 +530,7 @@ pycore_create_interpreter(_PyRuntimeState *runtime,
        another running thread (see issue #9901).
        Instead we destroy the previously created GIL here, which ensures
        that we can call Py_Initialize / Py_FinalizeEx multiple times. */
-    _PyEval_FiniThreads();
+    _PyEval_FiniThreads(&runtime->ceval);
 
     /* Auto-thread-state API */
     _PyGILState_Init(runtime, interp, tstate);
@@ -1141,7 +1142,7 @@ Py_FinalizeEx(void)
     wait_for_thread_shutdown();
 
     // Make any remaining pending calls.
-    _Py_FinishPendingCalls();
+    _Py_FinishPendingCalls(runtime);
 
     /* The interpreter is still entirely intact at this point, and the
      * exit funcs may be relying on that.  In particular, if some thread
