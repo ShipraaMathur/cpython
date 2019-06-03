@@ -4,5 +4,3 @@ import _xxsubinterpreters as interpreters
 interpid = interpreters.create()
 
 interpreters.run_module(interpid, "cython_test", "foo")
-
-print(f"Done!")
