@@ -1,0 +1,2 @@
+cdef foo():
+    print("Hello!")

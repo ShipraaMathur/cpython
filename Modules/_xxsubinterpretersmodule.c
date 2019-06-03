@@ -5,6 +5,7 @@
 #include "Python.h"
 #include "frameobject.h"
 #include "interpreteridobject.h"
+#include "tupleobject.h"
 
 
 static char *
@@ -1946,6 +1947,124 @@ _run_script_in_interpreter(PyInterpreterState *interp, const char *codestr,
     return result;
 }
 
+static int
+_run_module(PyInterpreterState *interp, const char *modulename, const char *funcname,
+            _sharedns *shared, _sharedexception **exc)
+{
+    PyObject *exctype = NULL;
+    PyObject *excval = NULL;
+    PyObject *tb = NULL;
+
+    PyObject *main_mod = _PyInterpreterState_GetMainModule(interp);
+    if (main_mod == NULL) {
+        goto error;
+    }
+    PyObject *ns = PyModule_GetDict(main_mod);  // borrowed
+    Py_DECREF(main_mod);
+    if (ns == NULL) {
+        goto error;
+    }
+    Py_INCREF(ns);
+
+    // Apply the cross-interpreter data.
+    if (shared != NULL) {
+        if (_sharedns_apply(shared, ns) != 0) {
+            Py_DECREF(ns);
+            goto error;
+        }
+    }
+
+    PyObject *result=NULL, *mod=NULL, *func=NULL;
+    mod = PyImport_ImportModule(modulename);
+    if (mod == NULL) {
+        goto error;
+    }
+    func = PyObject_GetAttrString(mod, funcname);
+    if (func == NULL){
+        goto error;
+    }
+
+    PyObject *args = PyTuple_New(0); // TODO : Pass args to func.
+    result = PyObject_Call(func, args, NULL);
+    Py_DECREF(mod);
+    Py_DECREF(func);
+    Py_DECREF(ns);
+    if (result == NULL) {
+        goto error;
+    } else {
+        Py_DECREF(result);
+    }
+
+    *exc = NULL;
+    return 0;
+
+error:
+    PyErr_Fetch(&exctype, &excval, &tb);
+
+    _sharedexception *sharedexc = _sharedexception_bind(exctype, excval, tb);
+    Py_XDECREF(exctype);
+    Py_XDECREF(excval);
+    Py_XDECREF(tb);
+    if (sharedexc == NULL) {
+        fprintf(stderr, "RunFailedError: script raised an uncaught exception");
+        PyErr_Clear();
+        sharedexc = NULL;
+    }
+    else {
+        assert(!PyErr_Occurred());
+    }
+    *exc = sharedexc;
+    return -1;
+}
+
+static int
+_run_module_in_interpreter(PyInterpreterState *interp, const char *modulename,
+                           const char *funcname, PyObject *shareables)
+{
+    if (_ensure_not_running(interp) < 0) {
+        return -1;
+    }
+
+    _sharedns *shared = _get_shared_ns(shareables);
+    if (shared == NULL && PyErr_Occurred()) {
+        return -1;
+    }
+
+    // Switch to interpreter.
+    PyThreadState *save_tstate = NULL;
+    if (interp != _PyInterpreterState_Get()) {
+        // XXX Using the "head" thread isn't strictly correct.
+        PyThreadState *tstate = PyInterpreterState_ThreadHead(interp);
+        // XXX Possible GILState issues?
+        save_tstate = PyThreadState_Swap(tstate);
+    }
+
+    // Run the script.
+    _sharedexception *exc = NULL;
+    int result = _run_module(interp, modulename, funcname, shared, &exc);
+
+    // Switch back.
+    if (save_tstate != NULL) {
+        PyThreadState_Swap(save_tstate);
+    }
+
+    // Propagate any exception out to the caller.
+    if (exc != NULL) {
+        _sharedexception_apply(exc, RunFailedError);
+        _sharedexception_free(exc);
+    }
+    else if (result != 0) {
+        // We were unable to allocate a shared exception.
+        PyErr_NoMemory();
+    }
+
+    if (shared != NULL) {
+        _sharedns_free(shared);
+    }
+
+    return result;
+}
+
 
 /* module level code ********************************************************/
 
@@ -2182,6 +2301,62 @@ Execute the provided string in the identified interpreter.\n\
 \n\
 See PyRun_SimpleStrings.");
 
+
+static PyObject *
+interp_run_module(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"id", "module", "shared", NULL};
+    PyObject *id, *module, *func;
+    PyObject *shared = NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds,
+                                     "OUU|O:run_module", kwlist,
+                                     &id, &module, &func, &shared)) {
+        return NULL;
+    }
+    if (!PyLong_Check(id)) {
+        PyErr_SetString(PyExc_TypeError, "first arg (ID) must be an int");
+        return NULL;
+    }
+
+    // Look up the interpreter.
+    PyInterpreterState *interp = _PyInterpreterID_LookUp(id);
+    if (interp == NULL) {
+        return NULL;
+    }
+
+    Py_ssize_t size;
+    const char *modulename = PyUnicode_AsUTF8AndSize(module, &size);
+    if (modulename == NULL) {
+        return NULL;
+    }
+    if (strlen(modulename) != (size_t)size) {
+        PyErr_SetString(PyExc_ValueError,
+                        "module name string cannot contain null bytes");
+        return NULL;
+    }
+
+    size = 0;
+    const char *funcname = PyUnicode_AsUTF8AndSize(func, &size);
+    if (funcname == NULL) {
+        return NULL;
+    }
+    if (strlen(funcname) != (size_t)size) {
+        PyErr_SetString(PyExc_ValueError,
+                        "module name string cannot contain null bytes");
+        return NULL;
+    }
+
+    // Run the code in the interpreter.
+    if (_run_module_in_interpreter(interp, modulename, funcname, shared) != 0) {
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(run_module_doc,
+"run_module(id, module, func, shared)\n\
+\n\
+Execute the function in the provided module within an identified interpreter.");
 
 static PyObject *
 object_is_shareable(PyObject *self, PyObject *args, PyObject *kwds)
@@ -2486,7 +2661,8 @@ static PyMethodDef module_functions[] = {
      METH_VARARGS | METH_KEYWORDS, is_running_doc},
     {"run_string",                (PyCFunction)(void(*)(void))interp_run_string,
      METH_VARARGS | METH_KEYWORDS, run_string_doc},
-
+    {"run_module",                (PyCFunction)(void(*)(void))interp_run_module,
+     METH_VARARGS | METH_KEYWORDS, run_module_doc},
     {"is_shareable",              (PyCFunction)(void(*)(void))object_is_shareable,
      METH_VARARGS | METH_KEYWORDS, is_shareable_doc},
 
