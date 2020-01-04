@@ -21,9 +21,11 @@ def main():
     )
 
     parser.add_argument("--verbose", "-v", action="count")
+    parser.add_argument("--graph", type=argparse.FileType("w"), action="store")
+
     args = parser.parse_args()
 
-    p = ParserGenerator(args.grammar, args.tokens, verbose=args.verbose)
+    p = ParserGenerator(args.grammar, args.tokens, verbose=args.verbose, graph=args.graph)
     grammar = p.make_grammar()
     grammar.produce_graminit_h(args.graminit_h.write)
     grammar.produce_graminit_c(args.graminit_c.write)

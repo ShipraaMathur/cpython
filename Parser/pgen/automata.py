@@ -48,6 +48,24 @@ class NFA:
                 else:
                     writer("    %s -> %d" % (label, j))
 
+    def graph(self, writer):
+        """Dump a graphical representation of the NFA"""
+        todo = [self.start]
+        for i, state in enumerate(todo):
+            for arc in state.arcs:
+                label = arc.label
+                next = arc.target
+                if next in todo:
+                    j = todo.index(next)
+                else:
+                    j = len(todo)
+                    todo.append(next)
+                if label is None:
+                    writer(" %d -> %d;\n" % (i, j))
+                else:
+                    writer(" %d -> %d [label=%s];\n" % (i, j, label.replace("'", '"')))
+
+
 
 class NFAArc:
     """An arc representing a transition between two NFA states.
@@ -301,6 +319,11 @@ class DFA:
             for label, next in sorted(state.arcs.items()):
                 writer("    %s -> %d" % (label, self.states.index(next)))
 
+    def graph(self, writer):
+        """Dump a graphical representation of the DFA"""
+        for i, state in enumerate(self.states):
+            for label, next in sorted(state.arcs.items()):
+                writer(" %d -> %d [label=%s];\n" % (i, self.states.index(next), label.replace("'", '"')))
 
 class DFAState(object):
     """A state of a DFA
