@@ -2449,6 +2449,8 @@ cmpop(cmpop_ty op)
         return PyCmp_GT;
     case GtE:
         return PyCmp_GE;
+    case AlE:
+        return PyCmp_AlE;
     case Is:
         return PyCmp_IS;
     case IsNot:

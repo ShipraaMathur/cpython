@@ -581,6 +581,7 @@ PyAPI_DATA(PyObject) _Py_NotImplementedStruct; /* Don't use this directly */
 #define Py_NE 3
 #define Py_GT 4
 #define Py_GE 5
+#define Py_AlE 6
 
 /*
  * Macro for implementing rich comparisons

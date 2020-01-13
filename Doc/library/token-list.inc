@@ -109,6 +109,10 @@
 
    Token value for ``">="``.
 
+.. data:: ALMOSTEQUAL
+
+   Token value for ``"~="``.
+
 .. data:: TILDE
 
    Token value for ``"~"``.

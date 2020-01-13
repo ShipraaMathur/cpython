@@ -37,6 +37,7 @@ const char * const _PyParser_TokenNames[] = {
     "NOTEQUAL",
     "LESSEQUAL",
     "GREATEREQUAL",
+    "ALMOSTEQUAL",
     "TILDE",
     "CIRCUMFLEX",
     "LEFTSHIFT",
@@ -183,6 +184,11 @@ PyToken_TwoChars(int c1, int c2)
     case '|':
         switch (c2) {
         case '=': return VBAREQUAL;
+        }
+        break;
+    case '~':
+        switch (c2) {
+        case '=': return ALMOSTEQUAL;
         }
         break;
     }

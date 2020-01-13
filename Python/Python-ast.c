@@ -11,6 +11,8 @@ typedef struct {
     PyObject *AST_type;
     PyObject *Add_singleton;
     PyObject *Add_type;
+    PyObject *AlE_singleton;
+    PyObject *AlE_type;
     PyObject *And_singleton;
     PyObject *And_type;
     PyObject *AnnAssign_type;
@@ -241,6 +243,8 @@ static int astmodule_clear(PyObject *module)
     Py_CLEAR(astmodulestate(module)->AST_type);
     Py_CLEAR(astmodulestate(module)->Add_singleton);
     Py_CLEAR(astmodulestate(module)->Add_type);
+    Py_CLEAR(astmodulestate(module)->AlE_singleton);
+    Py_CLEAR(astmodulestate(module)->AlE_type);
     Py_CLEAR(astmodulestate(module)->And_singleton);
     Py_CLEAR(astmodulestate(module)->And_type);
     Py_CLEAR(astmodulestate(module)->AnnAssign_type);
@@ -470,6 +474,8 @@ static int astmodule_traverse(PyObject *module, visitproc visit, void* arg)
     Py_VISIT(astmodulestate(module)->AST_type);
     Py_VISIT(astmodulestate(module)->Add_singleton);
     Py_VISIT(astmodulestate(module)->Add_type);
+    Py_VISIT(astmodulestate(module)->AlE_singleton);
+    Py_VISIT(astmodulestate(module)->AlE_type);
     Py_VISIT(astmodulestate(module)->And_singleton);
     Py_VISIT(astmodulestate(module)->And_type);
     Py_VISIT(astmodulestate(module)->AnnAssign_type);
@@ -1796,6 +1802,11 @@ static int init_types(void)
     state->NotIn_singleton = PyType_GenericNew((PyTypeObject
                                                *)state->NotIn_type, NULL, NULL);
     if (!state->NotIn_singleton) return 0;
+    state->AlE_type = make_type("AlE", state->cmpop_type, NULL, 0);
+    if (!state->AlE_type) return 0;
+    state->AlE_singleton = PyType_GenericNew((PyTypeObject *)state->AlE_type,
+                                             NULL, NULL);
+    if (!state->AlE_singleton) return 0;
     state->comprehension_type = make_type("comprehension", state->AST_type,
                                           comprehension_fields, 4);
     if (!state->comprehension_type) return 0;
@@ -4628,6 +4639,9 @@ PyObject* ast2obj_cmpop(cmpop_ty o)
         case NotIn:
             Py_INCREF(astmodulestate_global->NotIn_singleton);
             return astmodulestate_global->NotIn_singleton;
+        case AlE:
+            Py_INCREF(astmodulestate_global->AlE_singleton);
+            return astmodulestate_global->AlE_singleton;
         default:
             /* should never happen, but just in case ... */
             PyErr_Format(PyExc_SystemError, "unknown cmpop found");
@@ -9123,6 +9137,14 @@ obj2ast_cmpop(PyObject* obj, cmpop_ty* out, PyArena* arena)
         *out = NotIn;
         return 0;
     }
+    isinstance = PyObject_IsInstance(obj, astmodulestate_global->AlE_type);
+    if (isinstance == -1) {
+        return 1;
+    }
+    if (isinstance) {
+        *out = AlE;
+        return 0;
+    }
 
     PyErr_Format(PyExc_TypeError, "expected some sort of cmpop, but got %R", obj);
     return 1;
@@ -10205,6 +10227,9 @@ PyInit__ast(void)
     if (PyModule_AddObject(m, "NotIn", astmodulestate_global->NotIn_type) < 0)
         return NULL;
     Py_INCREF(astmodulestate(m)->NotIn_type);
+    if (PyModule_AddObject(m, "AlE", astmodulestate_global->AlE_type) < 0)
+        return NULL;
+    Py_INCREF(astmodulestate(m)->AlE_type);
     if (PyModule_AddObject(m, "comprehension",
         astmodulestate_global->comprehension_type) < 0) return NULL;
     Py_INCREF(astmodulestate(m)->comprehension_type);
