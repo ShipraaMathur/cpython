@@ -5958,6 +5958,7 @@ RICHCMP_WRAPPER(eq, Py_EQ)
 RICHCMP_WRAPPER(ne, Py_NE)
 RICHCMP_WRAPPER(gt, Py_GT)
 RICHCMP_WRAPPER(ge, Py_GE)
+RICHCMP_WRAPPER(ae, Py_AlE)
 
 static PyObject *
 wrap_next(PyObject *self, PyObject *args, void *wrapped)
@@ -6684,7 +6685,8 @@ static _Py_Identifier name_op[] = {
     {0, "__eq__", 0},
     {0, "__ne__", 0},
     {0, "__gt__", 0},
-    {0, "__ge__", 0}
+    {0, "__ge__", 0},
+    {0, "__ae__", 0},
 };
 
 static PyObject *
@@ -7019,6 +7021,8 @@ static slotdef slotdefs[] = {
            "__gt__($self, value, /)\n--\n\nReturn self>value."),
     TPSLOT("__ge__", tp_richcompare, slot_tp_richcompare, richcmp_ge,
            "__ge__($self, value, /)\n--\n\nReturn self>=value."),
+    TPSLOT("__ae__", tp_richcompare, slot_tp_richcompare, richcmp_ae,
+           "__ae__($self, value, /)\n--\n\nReturn self~=value."),
     TPSLOT("__iter__", tp_iter, slot_tp_iter, wrap_unaryfunc,
            "__iter__($self, /)\n--\n\nImplement iter(self)."),
     TPSLOT("__next__", tp_iternext, slot_tp_iternext, wrap_next,

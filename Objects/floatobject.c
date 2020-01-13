@@ -525,6 +525,17 @@ float_richcompare(PyObject *v, PyObject *w, int op)
     case Py_GT:
         r = i > j;
         break;
+    case Py_AlE: {
+            PyObject *ii, *jj;
+            ii = PyLong_FromDouble(i);
+            Py_INCREF(ii);
+            jj = PyLong_FromDouble(j);
+            Py_INCREF(jj);
+            r = PyObject_RichCompareBool(ii, jj, Py_EQ);
+            Py_DECREF(ii);
+            Py_DECREF(jj);
+        }
+            break;
     }
     return PyBool_FromLong(r);
 
