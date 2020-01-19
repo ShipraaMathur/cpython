@@ -40,6 +40,8 @@ PyFloat_GetMin(void)
 
 static PyTypeObject FloatInfoType;
 
+static PyObject * double_round(double x, int ndigits);
+
 PyDoc_STRVAR(floatinfo__doc__,
 "sys.float_info\n\
 \n\

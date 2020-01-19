@@ -11254,6 +11254,7 @@ PyUnicode_RichCompare(PyObject *left, PyObject *right, int op)
         switch (op) {
         case Py_EQ:
         case Py_LE:
+        case Py_AlE:
         case Py_GE:
             /* a string is equal to itself */
             Py_RETURN_TRUE;
@@ -11269,6 +11270,14 @@ PyUnicode_RichCompare(PyObject *left, PyObject *right, int op)
     else if (op == Py_EQ || op == Py_NE) {
         result = unicode_compare_eq(left, right);
         result ^= (op == Py_NE);
+        return PyBool_FromLong(result);
+    }
+    else if (op == Py_AlE){
+        PyObject* upper_left = case_operation(left, do_upper);
+        PyObject* upper_right = case_operation(right, do_upper);
+        result = unicode_compare_eq(upper_left, upper_right);
+        Py_DECREF(upper_left);
+        Py_DECREF(upper_right);
         return PyBool_FromLong(result);
     }
     else {
