@@ -529,8 +529,8 @@ float_richcompare(PyObject *v, PyObject *w, int op)
         break;
     case Py_AlE: {
             double diff = fabs(i - j);
-            double rel_tol = 1e-9;
-            double abs_tol = 0.1;
+            const double rel_tol = 1e-9;
+            const double abs_tol = 0.1;
             r = (((diff <= fabs(rel_tol * j)) ||
                      (diff <= fabs(rel_tol * i))) ||
                     (diff <= abs_tol));
