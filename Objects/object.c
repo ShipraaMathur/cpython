@@ -710,7 +710,7 @@ PyObject_RichCompare(PyObject *v, PyObject *w, int op)
 {
     PyThreadState *tstate = _PyThreadState_GET();
 
-    assert(Py_LT <= op && op <= Py_GE);
+    assert(Py_LT <= op && op <= Py_ALE);
     if (v == NULL || w == NULL) {
         if (!_PyErr_Occurred(tstate)) {
             PyErr_BadInternalCall();

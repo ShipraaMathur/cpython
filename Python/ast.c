@@ -1239,6 +1239,8 @@ ast_for_comp_op(struct compiling *c, const node *n)
                 return GtE;
             case NOTEQUAL:
                 return NotEq;
+            case ALMOSTEQUAL:
+                return AlE;
             case NAME:
                 if (strcmp(STR(n), "in") == 0)
                     return In;
