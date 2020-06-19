@@ -1403,7 +1403,7 @@ tok_get(struct tok_state *tok, const char **p_start, const char **p_end)
                 break;
             }
             c = tok_nextc(tok);
-            if (c == '"' || c == '\'') {
+            if (c == '"' || c == '\'' || c == '`') {
                 goto letter_quote;
             }
         }
@@ -1745,6 +1745,66 @@ tok_get(struct tok_state *tok, const char **p_start, const char **p_end)
         *p_start = tok->start;
         *p_end = tok->cur;
         return STRING;
+    }
+    if (c == '`') {
+        int quote = c;
+        int quote_size = 1;             /* 1 or 3 */
+        int end_quote_size = 0;
+
+        /* Nodes of type STRING, especially multi line strings
+           must be handled differently in order to get both
+           the starting line number and the column offset right.
+           (cf. issue 16806) */
+        tok->first_lineno = tok->lineno;
+        tok->multi_line_start = tok->line_start;
+
+        /* Find the quote size and start of string */
+        c = tok_nextc(tok);
+        if (c == quote) {
+            c = tok_nextc(tok);
+            if (c == quote) {
+                quote_size = 3;
+            }
+            else {
+                end_quote_size = 1;     /* empty string found */
+            }
+        }
+        if (c != quote) {
+            tok_backup(tok, c);
+        }
+
+        /* Get rest of string */
+        while (end_quote_size != quote_size) {
+            c = tok_nextc(tok);
+            if (c == EOF) {
+                if (quote_size == 3) {
+                    tok->done = E_EOFS;
+                }
+                else {
+                    tok->done = E_EOLS;
+                }
+                tok->cur = tok->inp;
+                return ERRORTOKEN;
+            }
+            if (quote_size == 1 && c == '\n') {
+                tok->done = E_EOLS;
+                tok->cur = tok->inp;
+                return ERRORTOKEN;
+            }
+            if (c == quote) {
+                end_quote_size += 1;
+            }
+            else {
+                end_quote_size = 0;
+                if (c == '\\') {
+                    tok_nextc(tok);  /* skip escaped char */
+                }
+            }
+        }
+
+        *p_start = tok->start;
+        *p_end = tok->cur;
+        return NAME;
     }
 
     /* Line continuation */
